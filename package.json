@@ -1,6 +1,6 @@
 {
   "name": "ifasy-launcher",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "IFASY Game Launcher — login, download & auto-update (LIVE + PTB)",
   "main": "main.js",
   "author": "IFASY",
@@ -26,7 +26,7 @@
       "createDesktopShortcut": true,
       "shortcutName": "IFASY Launcher"
     },
-    "publish": [{ "provider": "github", "owner": "nyazukix", "repo": "ifasy-launcher" }]
+    "publish": [{ "provider": "generic", "url": "https://ifasy.com/downloads/launcher/" }]
   },
   "devDependencies": {
     "electron": "31.7.0",
