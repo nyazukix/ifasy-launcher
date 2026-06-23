@@ -1,6 +1,6 @@
 {
   "name": "ifasy-launcher",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "IFASY Game Launcher — login, download & auto-update (LIVE + PTB)",
   "main": "main.js",
   "author": "IFASY",
@@ -17,14 +17,16 @@
     "files": ["main.js", "preload.js", "renderer/**/*"],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico",
       "artifactName": "IFASY-Launcher-Setup-${version}.${ext}"
     },
     "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": true,
       "createDesktopShortcut": true,
-      "shortcutName": "IFASY Launcher"
+      "shortcutName": "IFASY Launcher",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     },
     "publish": [{ "provider": "generic", "url": "https://ifasy.com/downloads/launcher/" }]
   },
