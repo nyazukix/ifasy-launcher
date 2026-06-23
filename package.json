@@ -1,6 +1,6 @@
 {
   "name": "ifasy-launcher",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "IFASY Game Launcher — login, download & auto-update (LIVE + PTB)",
   "main": "main.js",
   "author": "IFASY",

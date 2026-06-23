@@ -7,84 +7,108 @@
   <title>IFASY Launcher</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-  <!-- custom titlebar -->
+<body class="state-login">
+
+  <!-- ░░ TITLEBAR ░░ -->
   <header class="titlebar">
-    <div class="tb-left"><span class="tb-logo">IFASY</span><span class="tb-sub">LAUNCHER</span></div>
-    <div class="tb-right">
-      <button id="gearBtn" class="tb-btn" title="Einstellungen / Updates">&#9881;</button>
-      <button id="minBtn" class="tb-btn" title="Minimieren">&#8211;</button>
-      <button id="closeBtn" class="tb-btn close" title="Schließen">&#10005;</button>
+    <div class="titlebar__brand">
+      <span class="dot"></span>IFASY <em>Launcher</em>
+    </div>
+    <div class="titlebar__win">
+      <button id="gearBtn" class="winbtn" title="Einstellungen">&#9881;</button>
+      <button id="minBtn" class="winbtn" title="Minimieren">&#9472;</button>
+      <button id="closeBtn" class="winbtn winbtn--close" title="Schließen">&#10005;</button>
     </div>
   </header>
 
-  <!-- LOGIN overlay -->
-  <div id="loginOverlay" class="overlay">
-    <div class="login-card">
-      <div class="login-logo">IFASY</div>
-      <div class="login-tag">CO-OP ZOMBIE SHOOTER</div>
+  <!-- ░░ LOGIN ░░ -->
+  <section class="login">
+    <div class="login__art"></div>
+    <div class="login__card">
+      <div class="logo">IFASY</div>
+      <div class="logo__tag">CO-OP ZOMBIE SHOOTER</div>
       <form id="loginForm" autocomplete="off">
-        <input id="identifier" type="text" placeholder="Benutzername oder E-Mail" required autofocus />
-        <input id="password" type="password" placeholder="Passwort" required />
-        <button id="loginBtn" type="submit"><span class="btn-label">EINLOGGEN</span><span class="spinner" hidden></span></button>
-        <div id="loginStatus" class="status"></div>
+        <div class="field">
+          <input id="identifier" type="text" placeholder="Benutzername oder E-Mail" required autofocus />
+        </div>
+        <div class="field">
+          <input id="password" type="password" placeholder="Passwort" required />
+        </div>
+        <button id="loginBtn" class="btn btn--primary btn--block" type="submit">
+          <span class="btn__label">EINLOGGEN</span><span class="spinner" hidden></span>
+        </button>
+        <div id="loginStatus" class="formmsg"></div>
       </form>
+      <div class="login__foot">Launcher v<span id="vLogin">0.1.1</span></div>
     </div>
-  </div>
+  </section>
 
-  <!-- MAIN shell -->
-  <div id="shell" class="shell" hidden>
-    <!-- sidebar: channels + user -->
-    <nav class="sidebar">
-      <div class="side-title">SPIELE</div>
-      <button class="channel active" data-channel="live">
-        <div class="ch-name">IFASY</div>
-        <div class="ch-tag">LIVE</div>
+  <!-- ░░ APP ░░ -->
+  <div class="app">
+    <!-- left rail -->
+    <aside class="rail">
+      <div class="rail__title">SPIELE</div>
+      <button class="game game--active" data-channel="live">
+        <div class="game__thumb live">IF</div>
+        <div class="game__meta"><div class="game__name">IFASY</div><div class="game__tag">LIVE</div></div>
+        <span class="game__dot"></span>
       </button>
-      <button class="channel" data-channel="ptb">
-        <div class="ch-name">IFASY</div>
-        <div class="ch-tag ptb">PTB · DEV</div>
+      <button class="game" data-channel="ptb">
+        <div class="game__thumb ptb">IF</div>
+        <div class="game__meta"><div class="game__name">IFASY</div><div class="game__tag ptb">PTB · DEV</div></div>
+        <span class="game__dot"></span>
       </button>
 
-      <div class="side-foot">
-        <div class="user-chip">
-          <div class="avatar" id="avatar">?</div>
-          <div class="user-meta">
-            <div class="user-name" id="userName">—</div>
-            <div class="user-role" id="userRole">user</div>
-          </div>
+      <div class="rail__spacer"></div>
+
+      <div class="account">
+        <div class="account__avatar" id="avatar">?</div>
+        <div class="account__meta">
+          <div class="account__name" id="userName">—</div>
+          <div class="account__role" id="userRole">user</div>
         </div>
-        <button id="logoutBtn" class="logout">Abmelden</button>
       </div>
-    </nav>
+      <button id="logoutBtn" class="btn btn--ghost btn--block">Abmelden</button>
+    </aside>
 
-    <!-- content -->
-    <main class="content">
-      <section class="hero">
-        <div class="hero-bg" id="heroBg"></div>
-        <div class="hero-inner">
-          <div class="hero-badge" id="heroBadge">LIVE</div>
-          <h1 class="hero-title">IFASY</h1>
-          <p class="hero-news" id="heroNews">Überlebe die Horde. Solo oder im Koop bis zu 4 Spieler.</p>
+    <!-- stage -->
+    <main class="stage">
+      <section class="hero" id="hero">
+        <div class="hero__art" id="heroArt"></div>
+        <div class="hero__shade"></div>
+        <div class="hero__content">
+          <span class="chip" id="heroChip">LIVE</span>
+          <h1 class="hero__title">IFASY</h1>
+          <p class="hero__desc" id="heroDesc">Überlebe die Horde — solo oder im Koop bis zu 4 Spieler.</p>
         </div>
       </section>
 
-      <section class="actionbar">
-        <div class="ab-info">
-          <div class="ab-state" id="abState">Version wird geladen…</div>
-          <div class="progress" id="progress" hidden><div class="bar" id="bar"></div></div>
+      <section class="news">
+        <div class="news__title">NEUIGKEITEN</div>
+        <div class="news__item">
+          <b>Launcher v0.1.1</b>
+          <span>Neues Gameforge-Design &amp; Login-Fix. Demnächst: Spiel-Download.</span>
         </div>
-        <button id="playBtn" class="play-btn" disabled>PRÜFE…</button>
       </section>
+
+      <footer class="action">
+        <div class="action__left">
+          <div class="action__state" id="abState">Version wird geladen…</div>
+          <div class="bar" id="progress" hidden><span class="bar__fill" id="barFill"></span></div>
+        </div>
+        <button id="playBtn" class="btn btn--play" disabled>PRÜFE…</button>
+      </footer>
     </main>
   </div>
 
-  <!-- settings / self-update panel -->
-  <aside id="settings" class="settings" hidden>
-    <div class="set-head"><span>Einstellungen</span><button id="setClose" class="tb-btn">&#10005;</button></div>
-    <div class="set-row"><span>Launcher-Version</span><b id="launcherVer">–</b></div>
-    <button id="updBtn" class="set-btn">Nach Launcher-Updates suchen</button>
-    <div id="updStatus" class="set-status"></div>
+  <!-- ░░ SETTINGS DRAWER ░░ -->
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer" id="settings" aria-hidden="true">
+    <div class="drawer__head"><span>Einstellungen</span><button id="setClose" class="winbtn">&#10005;</button></div>
+    <div class="drawer__row"><span>Launcher-Version</span><b id="launcherVer">–</b></div>
+    <div class="drawer__row"><span>Kanal</span><b id="setChannel">LIVE</b></div>
+    <button id="updBtn" class="btn btn--accent btn--block">Nach Launcher-Updates suchen</button>
+    <div id="updStatus" class="drawer__msg"></div>
   </aside>
 
   <script src="app.js"></script>
