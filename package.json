@@ -1,0 +1,38 @@
+{
+  "name": "ifasy-launcher",
+  "version": "0.1.0",
+  "description": "IFASY Game Launcher — login, download & auto-update (LIVE + PTB)",
+  "main": "main.js",
+  "author": "IFASY",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "release": "electron-builder --win --x64 --publish always"
+  },
+  "build": {
+    "appId": "com.ifasy.launcher",
+    "productName": "IFASY Launcher",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "renderer/**/*"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "IFASY-Launcher-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "IFASY Launcher"
+    },
+    "publish": [{ "provider": "github", "owner": "nyazukix", "repo": "ifasy-launcher" }]
+  },
+  "devDependencies": {
+    "electron": "31.7.0",
+    "electron-builder": "24.13.3"
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
+  }
+}

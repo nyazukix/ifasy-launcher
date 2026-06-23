@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'" />
+  <title>IFASY Launcher</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- custom titlebar -->
+  <header class="titlebar">
+    <div class="tb-left"><span class="tb-logo">IFASY</span><span class="tb-sub">LAUNCHER</span></div>
+    <div class="tb-right">
+      <button id="gearBtn" class="tb-btn" title="Einstellungen / Updates">&#9881;</button>
+      <button id="minBtn" class="tb-btn" title="Minimieren">&#8211;</button>
+      <button id="closeBtn" class="tb-btn close" title="Schließen">&#10005;</button>
+    </div>
+  </header>
+
+  <!-- LOGIN overlay -->
+  <div id="loginOverlay" class="overlay">
+    <div class="login-card">
+      <div class="login-logo">IFASY</div>
+      <div class="login-tag">CO-OP ZOMBIE SHOOTER</div>
+      <form id="loginForm" autocomplete="off">
+        <input id="identifier" type="text" placeholder="Benutzername oder E-Mail" required autofocus />
+        <input id="password" type="password" placeholder="Passwort" required />
+        <button id="loginBtn" type="submit"><span class="btn-label">EINLOGGEN</span><span class="spinner" hidden></span></button>
+        <div id="loginStatus" class="status"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN shell -->
+  <div id="shell" class="shell" hidden>
+    <!-- sidebar: channels + user -->
+    <nav class="sidebar">
+      <div class="side-title">SPIELE</div>
+      <button class="channel active" data-channel="live">
+        <div class="ch-name">IFASY</div>
+        <div class="ch-tag">LIVE</div>
+      </button>
+      <button class="channel" data-channel="ptb">
+        <div class="ch-name">IFASY</div>
+        <div class="ch-tag ptb">PTB · DEV</div>
+      </button>
+
+      <div class="side-foot">
+        <div class="user-chip">
+          <div class="avatar" id="avatar">?</div>
+          <div class="user-meta">
+            <div class="user-name" id="userName">—</div>
+            <div class="user-role" id="userRole">user</div>
+          </div>
+        </div>
+        <button id="logoutBtn" class="logout">Abmelden</button>
+      </div>
+    </nav>
+
+    <!-- content -->
+    <main class="content">
+      <section class="hero">
+        <div class="hero-bg" id="heroBg"></div>
+        <div class="hero-inner">
+          <div class="hero-badge" id="heroBadge">LIVE</div>
+          <h1 class="hero-title">IFASY</h1>
+          <p class="hero-news" id="heroNews">Überlebe die Horde. Solo oder im Koop bis zu 4 Spieler.</p>
+        </div>
+      </section>
+
+      <section class="actionbar">
+        <div class="ab-info">
+          <div class="ab-state" id="abState">Version wird geladen…</div>
+          <div class="progress" id="progress" hidden><div class="bar" id="bar"></div></div>
+        </div>
+        <button id="playBtn" class="play-btn" disabled>PRÜFE…</button>
+      </section>
+    </main>
+  </div>
+
+  <!-- settings / self-update panel -->
+  <aside id="settings" class="settings" hidden>
+    <div class="set-head"><span>Einstellungen</span><button id="setClose" class="tb-btn">&#10005;</button></div>
+    <div class="set-row"><span>Launcher-Version</span><b id="launcherVer">–</b></div>
+    <button id="updBtn" class="set-btn">Nach Launcher-Updates suchen</button>
+    <div id="updStatus" class="set-status"></div>
+  </aside>
+
+  <script src="app.js"></script>
+</body>
+</html>
