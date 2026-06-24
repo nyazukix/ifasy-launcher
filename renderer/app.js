@@ -67,7 +67,7 @@ function enterApp(user) {
   document.body.className = 'state-app';
   selectChannel('live');
   startSocialPolling();
-  refreshUpdateIndicator();
+  renderUpd();
 }
 
 $('logoutBtn').onclick = async () => {
@@ -193,9 +193,14 @@ function renderActionState(ch) {
   }
 }
 
-function playGame(ch) {
-  // The game launch (spawn the .exe from client/<ch>/) lands once the build exists.
-  $('abState').textContent = 'Start des Spiels folgt, sobald ein Build veröffentlicht ist.';
+async function playGame(ch) {
+  // main spawns <client>/<ch>/IFASY.exe with -ifasytoken/-ifasyuser so the in-game
+  // hub uses the same session. The build doesn't exist yet -> graceful message.
+  $('abState').textContent = 'Spiel wird gestartet…';
+  const r = await api.installLaunch(ch);
+  if (r && r.ok) { $('abState').textContent = 'Spiel gestartet.'; }
+  else if (r && r.error === 'game_missing') { $('abState').textContent = 'Start des Spiels folgt, sobald ein Build veröffentlicht ist.'; }
+  else { $('abState').textContent = 'Spielstart fehlgeschlagen.'; }
 }
 
 async function doUninstall(ch) {
@@ -306,7 +311,7 @@ async function openDrawer() {
   $('setInstallPath').textContent = info.base;
   const s = await api.getSettings();
   $('rateInput').value = s && s.maxRateMBps ? s.maxRateMBps : '';
-  await refreshUpdateBanner();
+  renderUpd();
   scrim.hidden = false; drawer.classList.add('open');
 }
 function closeDrawer() { drawer.classList.remove('open'); scrim.hidden = true; }
@@ -323,77 +328,103 @@ $('rateSave').onclick = async () => {
   $('rateHint').textContent = v > 0 ? ('Gespeichert: max ' + v + ' MB/s.') : 'Gespeichert: unbegrenzt.';
 };
 
-/* ---- launcher self-update + indicator (item 8) ---- */
-async function refreshUpdateIndicator() {
-  const v = await api.launcherUpdateAvailable();
-  $('gearDot').hidden = !v;
+/* ============================ LAUNCHER SELF-UPDATE ============================
+   Strict, event-driven state machine. The update affordance (gear red dot,
+   settings banner, and the persistent bottom-right control) is shown ONLY after
+   real electron-updater events fire. Default = idle/up-to-date, never a prompt.
+   Works in every auth state (login screen + app); does not depend on login.   */
+let updState = 'idle';        // idle | checking | available | downloading | downloaded | current | error
+let updVersion = null;        // version reported by available/downloaded
+let updPercent = 0;
+let updCurrentTimer = null;   // brief "Aktuell ✓" then back to idle
+
+function setUpd(msg, kind) {
+  const el = $('updStatus'); if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'drawer__msg' + (kind ? ' ' + kind : '');
 }
-async function refreshUpdateBanner() {
-  const st = await api.launcherUpdateState();
-  if (st && st.version) {
+
+// Render ALL update affordances from the single updState. Called on every transition.
+function renderUpd() {
+  // 1) persistent bottom-right control
+  const ctl = $('updCtl'), icon = $('updCtlIcon'), label = $('updCtlLabel');
+  ctl.className = 'updctl updctl--' + (updState === 'downloading' ? 'available' : updState);
+  const setCtl = (cls, text, showLabel) => {
+    icon.className = 'fa-solid ' + cls + ' updctl__icon';
+    label.textContent = text || '';
+    label.hidden = !showLabel;
+  };
+  if (updState === 'checking') { setCtl('fa-rotate', 'Suche nach Updates…', true); ctl.title = 'Suche nach Updates…'; }
+  else if (updState === 'available') { setCtl('fa-circle-arrow-down', 'Jetzt updaten', true); ctl.title = 'Update verfügbar'; }
+  else if (updState === 'downloading') { setCtl('fa-circle-notch fa-spin', 'Update… ' + updPercent + '%', true); ctl.title = 'Update wird geladen'; }
+  else if (updState === 'downloaded') { setCtl('fa-power-off', 'Neustarten', true); ctl.title = 'Update bereit — Neustarten'; }
+  else if (updState === 'current') { setCtl('fa-check', 'Aktuell', true); ctl.title = 'Launcher ist aktuell'; }
+  else if (updState === 'error') { setCtl('fa-triangle-exclamation', 'Fehler – erneut', true); ctl.title = 'Fehler bei der Update-Prüfung'; }
+  else { setCtl('fa-rotate', '', false); ctl.title = 'Nach Updates suchen'; } // idle
+
+  // 2) gear red dot — only when there's a real update (available/downloading/downloaded)
+  const hasUpdate = (updState === 'available' || updState === 'downloading' || updState === 'downloaded');
+  $('gearDot').hidden = !hasUpdate;
+
+  // 3) settings banner — only when there's a real update
+  if (hasUpdate) {
     $('updBanner').hidden = false;
-    $('updBannerVer').textContent = 'v' + st.version;
-    // restart action only meaningful once the update has finished downloading
-    $('updInstallBtn').disabled = !st.downloaded;
-    $('updInstallBtn').innerHTML = st.downloaded
-      ? '<i class="fa-solid fa-rotate-right"></i> Aktualisieren &amp; neu starten'
-      : '<i class="fa-solid fa-circle-notch fa-spin"></i> Wird geladen…';
+    $('updBannerVer').textContent = updVersion ? 'v' + updVersion : '';
+    const ready = updState === 'downloaded';
+    $('updInstallBtn').disabled = !ready;
+    $('updInstallBtn').innerHTML = ready
+      ? '<i class="fa-solid fa-power-off"></i> Neustarten &amp; installieren'
+      : (updState === 'downloading'
+          ? '<i class="fa-solid fa-circle-notch fa-spin"></i> Wird geladen… ' + updPercent + '%'
+          : '<i class="fa-solid fa-circle-arrow-down"></i> Jetzt updaten');
   } else {
     $('updBanner').hidden = true;
   }
 }
-$('updInstallBtn').onclick = () => { $('updStatus').textContent = 'Wird aktualisiert — Neustart…'; api.installLauncherUpdate(); };
 
-/* ---- robust update flow (C1): never dead-end on "wird geladen…" ---- */
-let updStatusEl = null;
-let updWatchdog = null;          // timeout that rescues a stuck download
-let updChecking = false;
-function setUpd(msg, kind) {
-  updStatusEl = updStatusEl || $('updStatus');
-  updStatusEl.textContent = msg || '';
-  updStatusEl.className = 'drawer__msg' + (kind ? ' ' + kind : '');
-}
-function clearUpdWatchdog() { if (updWatchdog) { clearTimeout(updWatchdog); updWatchdog = null; } }
-function armUpdWatchdog() {
-  clearUpdWatchdog();
-  // if no resolving event arrives in 45s, resolve to a clear state from main's truth
-  updWatchdog = setTimeout(async () => {
-    const st = await api.launcherUpdateState();
-    if (st && st.downloaded) { showUpdateReady(st.version); }
-    else if (st && st.version) { setUpd('Update ' + st.version + ' wird im Hintergrund geladen. Du kannst weiterspielen.', ''); }
-    else { setUpd('Zeitüberschreitung bei der Update-Prüfung. Bitte erneut versuchen.', 'err'); }
-    updChecking = false;
-  }, 45000);
-}
-function showUpdateReady(v) {
-  clearUpdWatchdog();
-  updChecking = false;
-  $('gearDot').hidden = false;
-  refreshUpdateBanner();
-  setUpd('Update ' + (v ? v + ' ' : '') + 'bereit zum Installieren.', 'ok');
+function toState(s, opts) {
+  updState = s;
+  if (opts && 'version' in opts) updVersion = opts.version;
+  if (opts && 'percent' in opts) updPercent = opts.percent;
+  if (updCurrentTimer) { clearTimeout(updCurrentTimer); updCurrentTimer = null; }
+  // settings status text mirrors the state
+  if (s === 'checking') setUpd('Suche nach Updates…', '');
+  else if (s === 'available') setUpd('Update ' + (updVersion || '') + ' verfügbar.', '');
+  else if (s === 'downloading') setUpd('Update wird geladen… ' + updPercent + '%', '');
+  else if (s === 'downloaded') setUpd('Update ' + (updVersion || '') + ' bereit zum Neustart.', 'ok');
+  else if (s === 'current') { setUpd('Launcher ist aktuell. ✔', 'ok'); updCurrentTimer = setTimeout(() => { if (updState === 'current') toState('idle'); }, 4000); }
+  else if (s === 'error') setUpd('Update-Prüfung fehlgeschlagen.', 'err');
+  else setUpd('', '');
+  renderUpd();
 }
 
-$('updBtn').onclick = async () => {
-  // manual button always re-triggers a fresh check and resolves to a clear state,
-  // even if a previous check left the UI mid-"wird geladen…".
-  clearUpdWatchdog();
-  updChecking = true;
-  setUpd('Suche nach Updates…', '');
-  armUpdWatchdog();
+// Manual check (persistent control + settings button). Never gets stuck:
+// resolves from the returned truth, and events refine it.
+async function manualCheck() {
+  if (updState === 'downloaded') { api.installLauncherUpdate(); return; }      // Neustarten
+  if (updState === 'available') { /* trigger download by re-checking; autoDownload handles it */ }
+  toState('checking');
   const r = await api.checkLauncherUpdate();
-  if (!r || !r.ok) { clearUpdWatchdog(); updChecking = false; setUpd('Update-Prüfung fehlgeschlagen: ' + ((r && r.error) || 'kein Release verfügbar') + '.', 'err'); return; }
-  // resolve immediately from the returned truth (events may also fire)
-  if (r.downloaded) { showUpdateReady(r.version); }
-  else if (r.hasUpdate) { setUpd('Update ' + r.version + ' wird geladen…', ''); /* watchdog still armed */ }
-  else { clearUpdWatchdog(); updChecking = false; $('gearDot').hidden = true; setUpd('Launcher ist aktuell. ✔', 'ok'); }
-};
+  if (!r || !r.ok) { toState('error'); return; }
+  if (r.downloaded) toState('downloaded', { version: r.version });
+  else if (r.hasUpdate) toState('available', { version: r.version });   // download events will follow
+  else toState('current');
+}
 
-api.onUpdate('checking', () => { setUpd('Suche nach Updates…', ''); });
-api.onUpdate('available', (v) => { $('gearDot').hidden = false; refreshUpdateBanner(); setUpd('Update ' + v + ' wird geladen…', ''); armUpdWatchdog(); });
-api.onUpdate('progress', (p) => { armUpdWatchdog(); setUpd('Update wird geladen… ' + p + '%', ''); });
-api.onUpdate('downloaded', (v) => { showUpdateReady(v); });
-api.onUpdate('none', () => { clearUpdWatchdog(); updChecking = false; $('gearDot').hidden = true; setUpd('Launcher ist aktuell. ✔', 'ok'); });
-api.onUpdate('error', (msg) => { clearUpdWatchdog(); updChecking = false; setUpd('Update fehlgeschlagen / kein Release verfügbar.', 'err'); });
+$('updCtlBtn').onclick = manualCheck;
+$('updBtn').onclick = manualCheck;
+$('updInstallBtn').onclick = () => { setUpd('Wird installiert — Neustart…', ''); api.installLauncherUpdate(); };
+
+// Real electron-updater events drive the machine (single source of truth).
+api.onUpdate('checking', () => toState('checking'));
+api.onUpdate('available', (v) => toState('available', { version: v }));
+api.onUpdate('progress', (p) => toState('downloading', { percent: p }));
+api.onUpdate('downloaded', (v) => toState('downloaded', { version: v }));
+api.onUpdate('none', () => toState('current'));
+api.onUpdate('error', () => toState('error'));
+
+// start idle (no prompt) regardless of auth state
+renderUpd();
 
 /* ============================ FRIENDS & MESSAGING ============================ */
 const fDrawer = $('friendsDrawer'), fScrim = $('friendsScrim');

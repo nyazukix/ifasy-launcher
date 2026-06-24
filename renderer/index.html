@@ -50,7 +50,7 @@
         </button>
         <div id="loginStatus" class="formmsg"></div>
       </form>
-      <div class="login__foot">Launcher v<span id="vLogin">0.1.9</span></div>
+      <div class="login__foot">Launcher v<span id="vLogin">0.2.0</span></div>
     </div>
   </section>
 
@@ -206,6 +206,14 @@
       <button id="installConfirm" class="btn btn--play btn--sm"><i class="fa-solid fa-check"></i> Installieren</button>
     </div>
     <button id="installCancel" class="modal__close"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+
+  <!-- ░░ PERSISTENT UPDATE CONTROL (bottom-right, always visible) ░░ -->
+  <div class="updctl updctl--idle" id="updCtl" title="Nach Updates suchen">
+    <button class="updctl__btn" id="updCtlBtn">
+      <i class="fa-solid fa-rotate updctl__icon" id="updCtlIcon"></i>
+      <span class="updctl__label" id="updCtlLabel" hidden></span>
+    </button>
   </div>
 
   <script src="app.js"></script>

@@ -1,6 +1,9 @@
 /* ============================================================
    IFASY Launcher — AAA gaming-launcher UI (dark / gritty / FLAT+clean)
    ============================================================ */
+
+/* persistent update control (bottom-right, all auth states) — defined early,
+   overrides come later via specificity of state classes below */
 :root {
   --bg:#06080d; --bg2:#0a0d15; --bg3:#0d111b;
   --card:#11151f; --card2:#171c29; --card3:#1d2434;
@@ -301,6 +304,29 @@ body.state-app .titlebar__actions{display:flex}
 .modal__actions{display:flex;justify-content:flex-end;gap:11px;margin-top:24px}
 .modal__close{position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:9px;color:var(--muted);display:grid;place-items:center;transition:.15s}
 .modal__close:hover{background:var(--card3);color:var(--text)}
+
+/* ============================ PERSISTENT UPDATE CONTROL ============================ */
+.updctl{position:fixed;right:16px;bottom:14px;z-index:90}
+.updctl__btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:999px;
+  border:1px solid var(--line2);background:#0e121b;color:var(--muted);font-size:13px;font-weight:700;
+  transition:background .15s,color .15s,border-color .15s;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.updctl__btn:hover{background:var(--card2);color:var(--text);border-color:var(--muted2)}
+.updctl__icon{font-size:14px}
+.updctl__label{white-space:nowrap}
+/* idle: compact round icon only */
+.updctl--idle .updctl__btn{width:38px;padding:0;justify-content:center}
+.updctl--idle .updctl__label{display:none}
+/* checking: spinning icon + text */
+.updctl--checking .updctl__icon{animation:spin .8s linear infinite}
+.updctl--checking .updctl__btn{color:var(--text)}
+/* available / downloaded: accent call-to-action */
+.updctl--available .updctl__btn,.updctl--downloaded .updctl__btn{
+  background:var(--grad-red);color:#fff;border-color:transparent}
+.updctl--downloaded .updctl__btn{background:linear-gradient(105deg,#1f9d57,#3ddc97)}
+/* up-to-date: green tick, brief */
+.updctl--current .updctl__btn{color:var(--green);border-color:var(--green)}
+/* error */
+.updctl--error .updctl__btn{color:var(--err);border-color:var(--err)}
 
 /* ============================ RESPONSIVE ============================ */
 @media (max-width:1120px){

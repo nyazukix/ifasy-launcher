@@ -1,6 +1,6 @@
 {
   "name": "ifasy-launcher",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Offizieller IFASY Launcher fuer Login, Download und Updates",
   "main": "main.js",
   "author": "IFASY",

@@ -4,6 +4,7 @@
 const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 
 const API_BASE = 'https://app.ifasy.com'; // backend: login, update manifest, social API
@@ -318,6 +319,44 @@ ipcMain.handle('install:start', async (_e, channel, version) => {
     if (e && e.name === 'AbortError') { fmtSend('cancelled', { channel }); return { ok: false, error: 'cancelled' }; }
     fmtSend('error', { channel, message: String(e && e.message || e) });
     return { ok: false, error: 'download_failed', detail: String(e && e.message || e) };
+  }
+});
+
+// ---- launch the game (passes the session token + username to the UE client) ----
+// The UE game's UIFASYBackend subsystem reads the logged-in account from CLI args:
+//   <game>.exe -ifasytoken=<JWT> -ifasyuser=<username>
+// so the in-game hub (friends/lobby/clan/outfit) uses the SAME session as the launcher.
+// The game build does not exist yet — when present at client/<channel>/IFASY.exe this
+// spawns it; until then it reports game_missing (UI keeps the install/play state sane).
+function findGameExe(target) {
+  // recommended: client/<ch>/IFASY.exe ; fall back to the first *.exe in the dir
+  const preferred = path.join(target, 'IFASY.exe');
+  try { if (fs.existsSync(preferred)) return preferred; } catch (e) {}
+  try {
+    const exe = fs.readdirSync(target).find((f) => f.toLowerCase().endsWith('.exe'));
+    if (exe) return path.join(target, exe);
+  } catch (e) {}
+  return null;
+}
+ipcMain.handle('install:launch', async (_e, channel) => {
+  const s = readStore();
+  const base = ensureBaseSuffix(s.installBase || defaultBasePath());
+  const target = clientPath(base, channel);
+  const exe = findGameExe(target);
+  if (!exe) return { ok: false, error: 'game_missing' };
+  const token = s.token || '';
+  const username = (s.user && (s.user.username || s.user.email)) || '';
+  // MUST pass the auth token + username so the in-game backend bridge is logged in.
+  const args = [];
+  if (token) args.push('-ifasytoken=' + token);
+  if (username) args.push('-ifasyuser=' + username);
+  if (channel === 'ptb') args.push('-ptb');
+  try {
+    const child = spawn(exe, args, { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
+    child.unref();
+    return { ok: true, launched: true };
+  } catch (e) {
+    return { ok: false, error: 'launch_failed', detail: String(e && e.message || e) };
   }
 });
 

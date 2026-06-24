@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('ifasy', {
   installStart: (channel, version) => ipcRenderer.invoke('install:start', channel, version),
   installCancel: () => ipcRenderer.invoke('install:cancel'),
   installUninstall: (channel) => ipcRenderer.invoke('install:uninstall', channel),
+  installLaunch: (channel) => ipcRenderer.invoke('install:launch', channel),
   onDownload: (event, cb) => ipcRenderer.on('dl:' + event, (_e, v) => cb(v)),
 
   // download throttle settings
