@@ -76,7 +76,7 @@ async function selectChannel(ch) {
     play.disabled = false; play.textContent = 'HERUNTERLADEN';
     play.onclick = () => api.downloadGame(ch);
   } else {
-    $('abState').textContent = ptb ? 'Noch kein PTB-Build veröffentlicht.' : 'Noch kein Build veröffentlicht.';
+    $('abState').textContent = 'Spiel wurde noch nicht veröffentlicht';
     play.disabled = true; play.textContent = 'BALD';
   }
 }

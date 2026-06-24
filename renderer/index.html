@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://ifasy.com; connect-src 'self'" />
   <title>IFASY Launcher</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -25,7 +25,7 @@
   <section class="login">
     <div class="login__art"></div>
     <div class="login__card">
-      <div class="logo">IFASY</div>
+      <img class="logo-img logo-img--login" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="IFASY" />
       <div class="logo__tag">CO-OP ZOMBIE SHOOTER</div>
       <form id="loginForm" autocomplete="off">
         <div class="field">
@@ -39,7 +39,7 @@
         </button>
         <div id="loginStatus" class="formmsg"></div>
       </form>
-      <div class="login__foot">Launcher v<span id="vLogin">0.1.4</span></div>
+      <div class="login__foot">Launcher v<span id="vLogin">0.1.6</span></div>
     </div>
   </section>
 
@@ -78,20 +78,8 @@
         <div class="hero__shade"></div>
         <div class="hero__content">
           <span class="chip" id="heroChip">LIVE</span>
-          <h1 class="hero__title">IFASY</h1>
+          <img class="logo-img logo-img--hero" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="IFASY" />
           <p class="hero__desc" id="heroDesc">Überlebe die Horde — solo oder im Koop bis zu 4 Spieler.</p>
-        </div>
-      </section>
-
-      <section class="news">
-        <div class="news__title">NEUIGKEITEN</div>
-        <div class="news__item">
-          <b>Launcher v0.1.4</b>
-          <span>Neues AAA-Design, schärferes Login &amp; Fortschrittsanzeige. Demnächst: In-Launcher-Download.</span>
-        </div>
-        <div class="news__item">
-          <b>Roadmap</b>
-          <span>Wellen-Modus, Koop bis 4 Spieler und Highscores — bald spielbar.</span>
         </div>
       </section>
 
