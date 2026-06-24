@@ -3,21 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://ifasy.com; connect-src 'self'" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://ifasy.com; connect-src 'self'" />
   <title>IFASY Launcher</title>
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="state-login">
 
   <!-- ░░ TITLEBAR ░░ -->
   <header class="titlebar">
-    <div class="titlebar__brand">
-      <span class="dot"></span>IFASY <em>Launcher</em>
-    </div>
+    <div class="titlebar__brand">IFASY <em>LAUNCHER</em></div>
     <div class="titlebar__win">
-      <button id="gearBtn" class="winbtn" title="Einstellungen">&#9881;</button>
-      <button id="minBtn" class="winbtn" title="Minimieren">&#9472;</button>
-      <button id="closeBtn" class="winbtn winbtn--close" title="Schließen">&#10005;</button>
+      <button id="gearBtn" class="winbtn" title="Einstellungen"><i class="fa-solid fa-gear"></i></button>
+      <button id="minBtn" class="winbtn" title="Minimieren"><i class="fa-solid fa-minus"></i></button>
+      <button id="closeBtn" class="winbtn winbtn--close" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
     </div>
   </header>
 
@@ -28,19 +27,27 @@
       <img class="logo-img logo-img--login" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="IFASY" />
       <div class="logo__tag">CO-OP ZOMBIE SHOOTER</div>
       <form id="loginForm" autocomplete="off">
-        <div class="field">
+        <div class="field field--icon">
+          <i class="fa-solid fa-user"></i>
           <input id="identifier" type="text" placeholder="Benutzername oder E-Mail" required autofocus />
         </div>
-        <div class="field">
+        <div class="field field--icon">
+          <i class="fa-solid fa-lock"></i>
           <input id="password" type="password" placeholder="Passwort" required />
         </div>
         <button id="loginBtn" class="btn btn--primary btn--block" type="submit">
-          <span class="btn__label">EINLOGGEN</span><span class="spinner" hidden></span>
+          <span class="btn__label"><i class="fa-solid fa-right-to-bracket"></i> EINLOGGEN</span><span class="spinner" hidden></span>
         </button>
         <div id="loginStatus" class="formmsg"></div>
       </form>
-      <div class="login__foot">Launcher v<span id="vLogin">0.1.6</span></div>
+      <div class="login__foot">Launcher v<span id="vLogin">0.1.7</span></div>
     </div>
+  </section>
+
+  <!-- ░░ SPLASH (auto-login check) ░░ -->
+  <section class="splash">
+    <img class="logo-img splash__logo" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="IFASY" />
+    <div class="splash__msg"><span class="spinner"></span> Sitzung wird wiederhergestellt…</div>
   </section>
 
   <!-- ░░ APP ░░ -->
@@ -49,15 +56,22 @@
     <aside class="rail">
       <div class="rail__title">SPIELE</div>
       <button class="game game--active" data-channel="live">
-        <div class="game__thumb live">IF</div>
+        <img class="game__logo" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="" />
         <div class="game__meta"><div class="game__name">IFASY</div><div class="game__tag">LIVE</div></div>
         <span class="game__dot"></span>
       </button>
       <button class="game" data-channel="ptb">
-        <div class="game__thumb ptb">IF</div>
+        <img class="game__logo" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="" />
         <div class="game__meta"><div class="game__name">IFASY</div><div class="game__tag ptb">PTB · DEV</div></div>
         <span class="game__dot"></span>
       </button>
+
+      <div class="rail__nav">
+        <button id="navFriends" class="navbtn">
+          <i class="fa-solid fa-user-group"></i><span>Freunde</span>
+          <span class="badge" id="friendsBadge" hidden>0</span>
+        </button>
+      </div>
 
       <div class="rail__spacer"></div>
 
@@ -68,7 +82,7 @@
           <div class="account__role" id="userRole">user</div>
         </div>
       </div>
-      <button id="logoutBtn" class="btn btn--ghost btn--block">Abmelden</button>
+      <button id="logoutBtn" class="btn btn--ghost btn--block"><i class="fa-solid fa-arrow-right-from-bracket"></i> Abmelden</button>
     </aside>
 
     <!-- stage -->
@@ -77,9 +91,9 @@
         <div class="hero__art" id="heroArt"></div>
         <div class="hero__shade"></div>
         <div class="hero__content">
-          <span class="chip" id="heroChip">LIVE</span>
+          <span class="chip" id="heroChip"><span class="chip__txt">LIVE</span></span>
           <img class="logo-img logo-img--hero" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="IFASY" />
-          <p class="hero__desc" id="heroDesc">Überlebe die Horde — solo oder im Koop bis zu 4 Spieler.</p>
+          <p class="hero__desc" id="heroDesc"></p>
         </div>
       </section>
 
@@ -88,20 +102,88 @@
           <div class="action__state" id="abState">Version wird geladen…</div>
           <div class="bar" id="progress" hidden><span class="bar__fill" id="barFill"></span></div>
         </div>
-        <button id="playBtn" class="btn btn--play" disabled>PRÜFE…</button>
+        <button id="playBtn" class="btn btn--play" disabled><i class="fa-solid fa-circle-notch fa-spin"></i> PRÜFE…</button>
       </footer>
     </main>
   </div>
 
+  <!-- ░░ FRIENDS DRAWER ░░ -->
+  <div class="scrim" id="friendsScrim" hidden></div>
+  <aside class="fdrawer" id="friendsDrawer" aria-hidden="true">
+    <div class="fdrawer__head">
+      <span><i class="fa-solid fa-user-group"></i> Freunde</span>
+      <button id="friendsClose" class="winbtn"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div class="fdrawer__add">
+      <div class="field field--icon field--sm">
+        <i class="fa-solid fa-user-plus"></i>
+        <input id="friendAddInput" type="text" placeholder="Benutzername hinzufügen" />
+      </div>
+      <button id="friendAddBtn" class="btn btn--accent btn--sm"><i class="fa-solid fa-plus"></i></button>
+    </div>
+    <div id="friendAddMsg" class="fdrawer__msg"></div>
+
+    <div class="fdrawer__body">
+      <div class="flist-wrap" id="flistWrap">
+        <div class="flist__sec" id="secIncoming" hidden>
+          <div class="flist__title">ANFRAGEN</div>
+          <div id="incomingList"></div>
+        </div>
+        <div class="flist__sec" id="secOutgoing" hidden>
+          <div class="flist__title">GESENDET</div>
+          <div id="outgoingList"></div>
+        </div>
+        <div class="flist__sec">
+          <div class="flist__title">FREUNDE (<span id="friendCount">0</span>)</div>
+          <div id="friendsList"><div class="flist__empty">Noch keine Freunde.</div></div>
+        </div>
+      </div>
+
+      <!-- chat -->
+      <div class="chat" id="chatPanel" hidden>
+        <div class="chat__head">
+          <button id="chatBack" class="winbtn"><i class="fa-solid fa-arrow-left"></i></button>
+          <div class="chat__avatar" id="chatAvatar">?</div>
+          <div class="chat__name" id="chatName">—</div>
+        </div>
+        <div class="chat__msgs" id="chatMsgs"></div>
+        <form class="chat__compose" id="chatForm">
+          <input id="chatInput" type="text" placeholder="Nachricht schreiben…" autocomplete="off" />
+          <button class="btn btn--accent btn--sm" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
   <!-- ░░ SETTINGS DRAWER ░░ -->
   <div class="scrim" id="scrim" hidden></div>
   <aside class="drawer" id="settings" aria-hidden="true">
-    <div class="drawer__head"><span>Einstellungen</span><button id="setClose" class="winbtn">&#10005;</button></div>
-    <div class="drawer__row"><span>Launcher-Version</span><b id="launcherVer">–</b></div>
-    <div class="drawer__row"><span>Kanal</span><b id="setChannel">LIVE</b></div>
-    <button id="updBtn" class="btn btn--accent btn--block">Nach Launcher-Updates suchen</button>
+    <div class="drawer__head"><span><i class="fa-solid fa-gear"></i> Einstellungen</span><button id="setClose" class="winbtn"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="drawer__row"><span><i class="fa-solid fa-code-branch"></i> Launcher-Version</span><b id="launcherVer">–</b></div>
+    <div class="drawer__row"><span><i class="fa-solid fa-tower-broadcast"></i> Kanal</span><b id="setChannel">LIVE</b></div>
+    <div class="drawer__row drawer__row--col">
+      <span><i class="fa-solid fa-folder"></i> Installationsordner</span>
+      <b id="setInstallPath" class="path">–</b>
+      <button id="setPickFolder" class="btn btn--ghost btn--sm btn--block"><i class="fa-solid fa-folder-open"></i> Ordner ändern</button>
+    </div>
+    <button id="updBtn" class="btn btn--accent btn--block"><i class="fa-solid fa-rotate"></i> Nach Launcher-Updates suchen</button>
     <div id="updStatus" class="drawer__msg"></div>
   </aside>
+
+  <!-- ░░ INSTALL LOCATION MODAL ░░ -->
+  <div class="scrim" id="installScrim" hidden></div>
+  <div class="modal" id="installModal" hidden>
+    <div class="modal__head"><i class="fa-solid fa-download"></i> Spiel installieren</div>
+    <p class="modal__desc">Wähle, wohin IFASY installiert werden soll. Der Ordner endet immer auf <b>IFASY-LAUNCHER</b>.</p>
+    <div class="modal__path"><i class="fa-solid fa-folder"></i> <span id="installPathPreview">–</span></div>
+    <div class="modal__sub" id="installTargetPreview"></div>
+    <div class="modal__actions">
+      <button id="installPick" class="btn btn--ghost"><i class="fa-solid fa-folder-open"></i> Anderer Ordner</button>
+      <button id="installConfirm" class="btn btn--play btn--sm"><i class="fa-solid fa-check"></i> Installieren</button>
+    </div>
+    <button id="installCancel" class="modal__close"><i class="fa-solid fa-xmark"></i></button>
+  </div>
 
   <script src="app.js"></script>
 </body>
