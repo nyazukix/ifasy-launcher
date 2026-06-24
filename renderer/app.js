@@ -60,8 +60,90 @@ $('loginForm').addEventListener('submit', async (e) => {
   }
 });
 
+/* ---- launcher version in the titlebar ---- */
+api.launcherVersion().then((v) => { if (v) { $('topVer').textContent = 'v' + v; $('vLogin').textContent = v; } }).catch(() => {});
+
+/* ---- auth tabs: Einloggen / Registrieren ---- */
+const authTabs = $('authTabs');
+function switchTab(which) {
+  const reg = which === 'register';
+  authTabs.dataset.active = which;
+  $('tabLogin').classList.toggle('tab--active', !reg);
+  $('tabRegister').classList.toggle('tab--active', reg);
+  $('loginForm').hidden = reg;
+  $('registerForm').hidden = !reg;
+  if (reg) $('regUser').focus(); else $('identifier').focus();
+}
+$('tabLogin').onclick = () => switchTab('login');
+$('tabRegister').onclick = () => switchTab('register');
+
+/* ---- register flow (gen-tag / live check / register + auto-login) ---- */
+const regUser = $('regUser'), regTag = $('regTag'), regPass = $('regPass');
+const registerBtn = $('registerBtn');
+const regLabel = registerBtn.querySelector('.btn__label');
+const regSpinner = registerBtn.querySelector('.spinner');
+regSpinner.hidden = true;
+const setRegMsg = (m, k) => { const e = $('registerStatus'); e.textContent = m || ''; e.className = 'formmsg' + (k ? ' ' + k : ''); };
+const REG_ERR = {
+  bad_username: 'Username: 2–32 Zeichen (Buchstaben, Zahlen, _).',
+  bad_hashtag: 'Hashtag: 3–5 Ziffern.',
+  password_too_short: 'Passwort: mindestens 6 Zeichen.',
+  combo_taken: 'Diese Username#Tag-Kombination ist vergeben.',
+  network_error: 'Keine Verbindung zum Server.',
+  server_error: 'Serverfehler. Bitte später erneut.',
+};
+regTag.addEventListener('input', () => { regTag.value = regTag.value.replace(/[^0-9]/g, '').slice(0, 5); scheduleTagCheck(); });
+regUser.addEventListener('input', () => { regUser.value = regUser.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 32); scheduleTagCheck(); });
+
+$('regDice').onclick = async () => {
+  const u = regUser.value.trim();
+  if (!u) { setRegMsg('Erst einen Username eingeben.', 'err'); regUser.focus(); return; }
+  $('regTagCheck').className = 'tagcheck checking'; $('regTagCheck').innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+  const r = await api.genTag(u);
+  if (r && r.ok && r.hashtag) { regTag.value = r.hashtag; setTagCheck(true); }
+  else { $('regTagCheck').className = 'tagcheck'; $('regTagCheck').textContent = ''; }
+};
+
+let tagCheckTimer = null;
+function setTagCheck(available) {
+  const el = $('regTagCheck');
+  if (available === null) { el.className = 'tagcheck'; el.textContent = ''; return; }
+  if (available === 'checking') { el.className = 'tagcheck checking'; el.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>'; return; }
+  el.className = 'tagcheck ' + (available ? 'ok' : 'no');
+  el.innerHTML = available ? '<i class="fa-solid fa-check"></i>' : '<i class="fa-solid fa-xmark"></i>';
+}
+function scheduleTagCheck() {
+  if (tagCheckTimer) clearTimeout(tagCheckTimer);
+  const u = regUser.value.trim(), t = regTag.value.trim();
+  if (!u || t.length < 3) { setTagCheck(null); return; }
+  setTagCheck('checking');
+  tagCheckTimer = setTimeout(async () => {
+    const r = await api.checkTag(u, t);
+    setTagCheck(!!(r && r.ok && r.available));
+  }, 350);
+}
+
+$('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const u = regUser.value.trim(), t = regTag.value.trim(), pw = regPass.value;
+  if (!u || !t || !pw) return setRegMsg('Bitte alle Felder ausfüllen.', 'err');
+  registerBtn.disabled = true; regSpinner.hidden = false; regLabel.textContent = 'ERSTELLE…'; setRegMsg('');
+  const r = await api.register(u, t, pw);
+  registerBtn.disabled = false; regSpinner.hidden = true; regLabel.innerHTML = '<i class="fa-solid fa-user-plus"></i> KONTO ERSTELLEN';
+  if (r && r.data && r.data.ok) {
+    setRegMsg('Konto erstellt ✔ Anmeldung…', 'ok');
+    setTimeout(() => enterApp(r.data.user || {}), 300);
+  } else {
+    setRegMsg(REG_ERR[(r && r.data && r.data.error)] || 'Registrierung fehlgeschlagen.', 'err');
+  }
+});
+
+function fmtIdentity(user) {
+  const name = user.username || user.email || 'Spieler';
+  return (user.username && user.username_hashtag) ? (name + '#' + user.username_hashtag) : name;
+}
 function enterApp(user) {
-  $('userName').textContent = user.username || user.email || 'Spieler';
+  $('userName').textContent = fmtIdentity(user);
   $('userRole').textContent = user.role || 'user';
   $('avatar').textContent = (user.username || user.email || '?').charAt(0).toUpperCase();
   document.body.className = 'state-app';
@@ -441,6 +523,7 @@ function closeFriends() { fDrawer.classList.remove('open'); fScrim.hidden = true
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 function avatarLetter(name) { return (name || '?').charAt(0).toUpperCase(); }
+function nameTag(u) { return u.username_hashtag ? (u.username + '#' + u.username_hashtag) : u.username; }
 
 async function refreshSocial() {
   const o = await api.socialOverview();
@@ -456,7 +539,7 @@ async function refreshSocial() {
     inList.innerHTML = o.incoming.map((u) => `
       <div class="frow">
         <div class="frow__av">${esc(avatarLetter(u.username))}</div>
-        <div class="frow__name">${esc(u.username)}</div>
+        <div class="frow__name">${esc(nameTag(u))}</div>
         <button class="iconbtn iconbtn--ok" data-accept="${u.id}" title="Annehmen"><i class="fa-solid fa-check"></i></button>
         <button class="iconbtn iconbtn--no" data-decline="${u.id}" title="Ablehnen"><i class="fa-solid fa-xmark"></i></button>
       </div>`).join('');
@@ -468,7 +551,7 @@ async function refreshSocial() {
     outList.innerHTML = o.outgoing.map((u) => `
       <div class="frow">
         <div class="frow__av frow__av--dim">${esc(avatarLetter(u.username))}</div>
-        <div class="frow__name frow__name--dim">${esc(u.username)} <span class="frow__pending">ausstehend</span></div>
+        <div class="frow__name frow__name--dim">${esc(nameTag(u))} <span class="frow__pending">ausstehend</span></div>
         <button class="iconbtn iconbtn--no" data-cancel="${u.id}" title="Zurückziehen"><i class="fa-solid fa-xmark"></i></button>
       </div>`).join('');
   } else { sOut.hidden = true; outList.innerHTML = ''; }
@@ -477,10 +560,10 @@ async function refreshSocial() {
   $('friendCount').textContent = o.friends ? o.friends.length : 0;
   if (o.friends && o.friends.length) {
     fl.innerHTML = o.friends.map((u) => `
-      <div class="frow frow--friend" data-chat="${u.id}" data-name="${esc(u.username)}">
+      <div class="frow frow--friend" data-chat="${u.id}" data-name="${esc(nameTag(u))}">
         <div class="frow__av">${esc(avatarLetter(u.username))}</div>
-        <div class="frow__name">${esc(u.username)}</div>
-        <button class="iconbtn" data-chat="${u.id}" data-name="${esc(u.username)}" title="Nachricht"><i class="fa-solid fa-comment"></i></button>
+        <div class="frow__name">${esc(nameTag(u))}</div>
+        <button class="iconbtn" data-chat="${u.id}" data-name="${esc(nameTag(u))}" title="Nachricht"><i class="fa-solid fa-comment"></i></button>
         <button class="iconbtn iconbtn--no" data-remove="${u.id}" title="Entfernen"><i class="fa-solid fa-user-minus"></i></button>
       </div>`).join('');
   } else { fl.innerHTML = '<div class="flist__empty">Noch keine Freunde.</div>'; }
@@ -497,17 +580,20 @@ $('flistWrap').addEventListener('click', async (e) => {
 });
 
 $('friendAddBtn').onclick = sendFriendRequest;
-$('friendAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendFriendRequest(); });
+$('friendAddTag').addEventListener('input', () => { $('friendAddTag').value = $('friendAddTag').value.replace(/[^0-9]/g, '').slice(0, 5); });
+$('friendAddUser').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('friendAddTag').focus(); } });
+$('friendAddTag').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendFriendRequest(); } });
 async function sendFriendRequest() {
-  const name = $('friendAddInput').value.trim();
+  const name = $('friendAddUser').value.trim();
+  const tag = $('friendAddTag').value.trim();
   const msg = $('friendAddMsg');
-  if (!name) return;
+  if (!name || !tag) { msg.textContent = 'Username und #Tag eingeben.'; msg.className = 'fdrawer__msg err'; return; }
   msg.textContent = 'Sende Anfrage…'; msg.className = 'fdrawer__msg';
-  const r = await api.socialRequest({ username: name });
+  const r = await api.socialRequest({ username: name, hashtag: tag });
   if (r && r.ok) {
     msg.textContent = r.status === 'accepted' ? 'Ihr seid jetzt Freunde ✔' : 'Anfrage gesendet ✔';
     msg.className = 'fdrawer__msg ok';
-    $('friendAddInput').value = '';
+    $('friendAddUser').value = ''; $('friendAddTag').value = '';
     refreshSocial();
   } else {
     const m = {

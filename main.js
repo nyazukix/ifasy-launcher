@@ -110,6 +110,35 @@ ipcMain.handle('login', async (_e, identifier, password) => {
   }
 });
 
+// ---- register a new account (username#hashtag) -> auto-login on success ----
+ipcMain.handle('register', async (_e, username, hashtag, password) => {
+  try {
+    const res = await fetch(API_BASE + '/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, hashtag, password }),
+    });
+    const data = await res.json().catch(() => ({ ok: false, error: 'bad_response' }));
+    if (data && data.ok && data.token) patchStore({ token: data.token, user: data.user || null });
+    return { status: res.status, data };
+  } catch (e) {
+    return { status: 0, data: { ok: false, error: 'network_error' } };
+  }
+});
+// ---- hashtag helpers (proxy to backend) ----
+ipcMain.handle('check-tag', async (_e, username, hashtag) => {
+  try {
+    const res = await fetch(API_BASE + '/api/check-tag?username=' + encodeURIComponent(username) + '&hashtag=' + encodeURIComponent(hashtag));
+    return await res.json().catch(() => ({ ok: false }));
+  } catch (e) { return { ok: false, error: 'network_error' }; }
+});
+ipcMain.handle('gen-tag', async (_e, username) => {
+  try {
+    const res = await fetch(API_BASE + '/api/gen-tag?username=' + encodeURIComponent(username));
+    return await res.json().catch(() => ({ ok: false }));
+  } catch (e) { return { ok: false, error: 'network_error' }; }
+});
+
 // ---- auto-login: validate the persisted token on launch ----
 ipcMain.handle('session:restore', async () => {
   const s = readStore();

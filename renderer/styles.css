@@ -41,10 +41,6 @@ body.state-splash .splash{display:flex;animation:fadeIn .3s var(--ease)}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 
-/* the top-bar Freunde/Einstellungen buttons only make sense once logged in */
-.titlebar__actions{display:none}
-body.state-app .titlebar__actions{display:flex}
-
 /* ============================ TITLEBAR ============================ */
 .titlebar{
   height:42px;display:flex;align-items:center;gap:14px;
@@ -53,12 +49,8 @@ body.state-app .titlebar__actions{display:flex}
 }
 .titlebar__brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:1.5px;font-size:14px}
 .titlebar__brand em{color:var(--muted);font-weight:600;letter-spacing:3px;font-size:11px;text-transform:uppercase}
-.titlebar__actions{align-items:center;gap:6px;margin-left:8px;-webkit-app-region:no-drag}
-.topbtn{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 13px;border-radius:8px;
-  color:var(--muted);font-size:13px;font-weight:700;position:relative;transition:background .15s,color .15s}
-.topbtn i{font-size:13px}
-.topbtn:hover{background:var(--card3);color:var(--text)}
-.topbtn .badge{position:static;transform:none;margin-left:2px}
+.titlebar__ver{color:var(--orange);font-weight:700;letter-spacing:.5px;font-size:12px;background:rgba(232,57,43,.12);
+  border:1px solid rgba(232,57,43,.35);border-radius:6px;padding:2px 8px;margin-left:2px}
 .reddot{position:absolute;top:5px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--red);
   box-shadow:0 0 0 2px #070a10}
 .titlebar__win{display:flex;gap:2px;margin-left:auto;-webkit-app-region:no-drag}
@@ -99,8 +91,24 @@ body.state-app .titlebar__actions{display:flex}
 }
 .logo-img{display:block;width:auto;-webkit-user-drag:none;user-select:none}
 .logo-img--login{height:112px;margin:2px auto 0;filter:drop-shadow(0 8px 22px rgba(232,57,43,.4));animation:riseIn .6s var(--ease)}
-.logo__tag{color:var(--muted);letter-spacing:4px;font-size:11px;margin:10px 0 30px;font-weight:600}
-.login__foot{margin-top:24px;color:var(--muted2);font-size:12px;letter-spacing:.5px}
+.logo__tag{color:var(--muted);letter-spacing:4px;font-size:11px;margin:10px 0 22px;font-weight:600}
+.login__foot{margin-top:22px;color:var(--muted2);font-size:12px;letter-spacing:.5px}
+
+/* auth tabs (Einloggen / Registrieren) */
+.tabs{position:relative;display:flex;background:rgba(13,17,26,.7);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:18px}
+.tab{flex:1;position:relative;z-index:2;padding:10px 0;border-radius:9px;font-weight:800;font-size:13px;letter-spacing:.5px;color:var(--muted);background:transparent;transition:color .2s}
+.tab--active{color:#fff}
+.tabs__ink{position:absolute;z-index:1;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:9px;background:var(--grad-red);transition:transform .26s var(--ease)}
+.tabs[data-active="register"] .tabs__ink{transform:translateX(100%)}
+.authform{animation:fadeIn .25s var(--ease)}
+
+/* register hashtag row: #tag input + dice + live check */
+.reg-tagrow{display:flex;align-items:center;gap:8px;margin-bottom:13px}
+.reg-tagrow .field{margin-bottom:0;flex:1}
+.field--tag input{letter-spacing:2px;font-weight:700}
+.btn--icon{width:46px;height:46px;padding:0;flex:0 0 auto;border-radius:12px;font-size:16px}
+.tagcheck{width:20px;flex:0 0 auto;text-align:center;font-size:15px}
+.tagcheck.ok{color:var(--green)} .tagcheck.no{color:var(--err)} .tagcheck.checking{color:var(--muted2)}
 
 /* ===== fields / buttons ===== */
 .field{margin-bottom:13px;position:relative}
@@ -167,7 +175,14 @@ body.state-app .titlebar__actions{display:flex}
 .account__meta{min-width:0}
 .account__name{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .account__role{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-#logoutBtn{margin-top:10px}
+
+/* bottom control bar (logged in): 3 FA icon buttons */
+.railbar{display:flex;gap:8px;margin-top:10px}
+.railbtn{position:relative;flex:1;height:42px;border-radius:11px;border:1px solid var(--line);background:var(--card);
+  color:var(--muted);display:grid;place-items:center;font-size:16px;transition:.15s}
+.railbtn:hover{color:var(--text);border-color:var(--line2);background:var(--card2)}
+.railbtn .badge{position:absolute;top:-6px;right:-6px;border:2px solid #080a10}
+.railbtn .reddot{position:absolute;top:7px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--card)}
 
 /* ===== stage ===== */
 .stage{display:flex;flex-direction:column;min-width:0;background:var(--bg2)}
@@ -252,6 +267,8 @@ body.state-app .titlebar__actions{display:flex}
 .fdrawer__head i{color:var(--orange);margin-right:6px}
 .fdrawer__add{display:flex;gap:8px;padding:0 18px}
 .fdrawer__add .field{flex:1;margin-bottom:0}
+.fdrawer__add--tag .field--tag{flex:0 0 92px}
+.fdrawer__add--tag .field--tag input{letter-spacing:2px;font-weight:700}
 .fdrawer__msg{padding:8px 18px 0;font-size:12.5px;min-height:16px;color:var(--muted)}
 .fdrawer__msg.ok{color:var(--green)} .fdrawer__msg.err{color:var(--err)}
 .fdrawer__body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
@@ -306,7 +323,9 @@ body.state-app .titlebar__actions{display:flex}
 .modal__close:hover{background:var(--card3);color:var(--text)}
 
 /* ============================ PERSISTENT UPDATE CONTROL ============================ */
+/* shown only when NOT logged in; the bottom rail icons take over once logged in */
 .updctl{position:fixed;right:16px;bottom:14px;z-index:90}
+body.state-app .updctl{display:none}
 .updctl__btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:999px;
   border:1px solid var(--line2);background:#0e121b;color:var(--muted);font-size:13px;font-weight:700;
   transition:background .15s,color .15s,border-color .15s;box-shadow:0 6px 18px rgba(0,0,0,.35)}
@@ -335,8 +354,6 @@ body.state-app .titlebar__actions{display:flex}
   .hero__content{padding:36px 40px 24px}
   .action{padding-left:40px;padding-right:40px}
   .btn--play{min-width:170px;font-size:17px;padding:17px 26px}
-  .topbtn span{display:none}
-  .topbtn{padding:0 9px}
 }
 @media (max-height:660px){
   .hero__title{font-size:44px;margin:10px 0 8px}

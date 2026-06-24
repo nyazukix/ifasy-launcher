@@ -12,17 +12,7 @@
 
   <!-- ░░ TITLEBAR ░░ -->
   <header class="titlebar">
-    <div class="titlebar__brand">IFASY <em>LAUNCHER</em></div>
-    <div class="titlebar__actions">
-      <button id="topFriendsBtn" class="topbtn" title="Freunde">
-        <i class="fa-solid fa-user-group"></i><span>Freunde</span>
-        <span class="badge" id="friendsBadge" hidden>0</span>
-      </button>
-      <button id="gearBtn" class="topbtn" title="Einstellungen">
-        <i class="fa-solid fa-gear"></i><span>Einstellungen</span>
-        <span class="reddot" id="gearDot" hidden></span>
-      </button>
-    </div>
+    <div class="titlebar__brand">IFASY <em>LAUNCHER</em> <span class="titlebar__ver" id="topVer"></span></div>
     <div class="titlebar__win">
       <button id="minBtn" class="winbtn" title="Minimieren"><i class="fa-solid fa-minus"></i></button>
       <button id="maxBtn" class="winbtn" title="Maximieren"><i class="fa-solid fa-expand"></i></button>
@@ -30,16 +20,24 @@
     </div>
   </header>
 
-  <!-- ░░ LOGIN ░░ -->
+  <!-- ░░ AUTH (login + register tabs) ░░ -->
   <section class="login">
     <div class="login__art"></div>
     <div class="login__card">
       <img class="logo-img logo-img--login" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="IFASY" />
       <div class="logo__tag">CO-OP ZOMBIE SHOOTER</div>
-      <form id="loginForm" autocomplete="off">
+
+      <div class="tabs" id="authTabs">
+        <button class="tab tab--active" id="tabLogin" data-tab="login">Einloggen</button>
+        <button class="tab" id="tabRegister" data-tab="register">Registrieren</button>
+        <span class="tabs__ink" id="tabsInk"></span>
+      </div>
+
+      <!-- LOGIN -->
+      <form id="loginForm" class="authform" autocomplete="off">
         <div class="field field--icon">
           <i class="fa-solid fa-user"></i>
-          <input id="identifier" type="text" placeholder="Benutzername oder E-Mail" required autofocus />
+          <input id="identifier" type="text" placeholder="Benutzername#1234 oder E-Mail" required autofocus />
         </div>
         <div class="field field--icon">
           <i class="fa-solid fa-lock"></i>
@@ -50,7 +48,32 @@
         </button>
         <div id="loginStatus" class="formmsg"></div>
       </form>
-      <div class="login__foot">Launcher v<span id="vLogin">0.2.0</span></div>
+
+      <!-- REGISTER -->
+      <form id="registerForm" class="authform" autocomplete="off" hidden>
+        <div class="field field--icon">
+          <i class="fa-solid fa-user"></i>
+          <input id="regUser" type="text" placeholder="Benutzername" maxlength="32" required />
+        </div>
+        <div class="reg-tagrow">
+          <div class="field field--icon field--tag">
+            <i class="fa-solid fa-hashtag"></i>
+            <input id="regTag" type="text" placeholder="1234" maxlength="5" inputmode="numeric" required />
+          </div>
+          <button id="regDice" class="btn btn--ghost btn--icon" type="button" title="Freien Tag würfeln"><i class="fa-solid fa-dice"></i></button>
+          <span class="tagcheck" id="regTagCheck"></span>
+        </div>
+        <div class="field field--icon">
+          <i class="fa-solid fa-lock"></i>
+          <input id="regPass" type="password" placeholder="Passwort (min. 6 Zeichen)" required />
+        </div>
+        <button id="registerBtn" class="btn btn--primary btn--block" type="submit">
+          <span class="btn__label"><i class="fa-solid fa-user-plus"></i> KONTO ERSTELLEN</span><span class="spinner" hidden></span>
+        </button>
+        <div id="registerStatus" class="formmsg"></div>
+      </form>
+
+      <div class="login__foot">Launcher v<span id="vLogin">0.2.1</span></div>
     </div>
   </section>
 
@@ -85,7 +108,13 @@
           <div class="account__role" id="userRole">user</div>
         </div>
       </div>
-      <button id="logoutBtn" class="btn btn--ghost btn--block"><i class="fa-solid fa-arrow-right-from-bracket"></i> Abmelden</button>
+
+      <!-- bottom controls: 3 FA icon buttons -->
+      <div class="railbar">
+        <button id="logoutBtn" class="railbtn" title="Abmelden"><i class="fa-solid fa-right-from-bracket"></i></button>
+        <button id="gearBtn" class="railbtn" title="Einstellungen"><i class="fa-solid fa-gear"></i><span class="reddot" id="gearDot" hidden></span></button>
+        <button id="topFriendsBtn" class="railbtn" title="Freunde"><i class="fa-solid fa-user-group"></i><span class="badge" id="friendsBadge" hidden>0</span></button>
+      </div>
     </aside>
 
     <!-- stage -->
@@ -123,12 +152,16 @@
       <button id="friendsClose" class="winbtn"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
-    <div class="fdrawer__add">
+    <div class="fdrawer__add fdrawer__add--tag">
       <div class="field field--icon field--sm">
-        <i class="fa-solid fa-user-plus"></i>
-        <input id="friendAddInput" type="text" placeholder="Benutzername hinzufügen" />
+        <i class="fa-solid fa-user"></i>
+        <input id="friendAddUser" type="text" placeholder="Username" />
       </div>
-      <button id="friendAddBtn" class="btn btn--accent btn--sm"><i class="fa-solid fa-plus"></i></button>
+      <div class="field field--icon field--sm field--tag">
+        <i class="fa-solid fa-hashtag"></i>
+        <input id="friendAddTag" type="text" placeholder="1234" maxlength="5" inputmode="numeric" />
+      </div>
+      <button id="friendAddBtn" class="btn btn--accent btn--sm" title="Hinzufügen"><i class="fa-solid fa-plus"></i></button>
     </div>
     <div id="friendAddMsg" class="fdrawer__msg"></div>
 
@@ -169,7 +202,6 @@
   <aside class="drawer" id="settings" aria-hidden="true">
     <div class="drawer__head"><span><i class="fa-solid fa-gear"></i> Einstellungen</span><button id="setClose" class="winbtn"><i class="fa-solid fa-xmark"></i></button></div>
 
-    <!-- update banner (item 8) -->
     <div class="updbanner" id="updBanner" hidden>
       <div class="updbanner__txt"><i class="fa-solid fa-circle-arrow-up"></i> Neues Update verfügbar <b id="updBannerVer"></b></div>
       <button id="updInstallBtn" class="btn btn--play btn--sm"><i class="fa-solid fa-rotate-right"></i> Aktualisieren &amp; neu starten</button>
@@ -208,7 +240,7 @@
     <button id="installCancel" class="modal__close"><i class="fa-solid fa-xmark"></i></button>
   </div>
 
-  <!-- ░░ PERSISTENT UPDATE CONTROL (bottom-right, always visible) ░░ -->
+  <!-- ░░ PERSISTENT UPDATE CONTROL (bottom-right, only when NOT logged in) ░░ -->
   <div class="updctl updctl--idle" id="updCtl" title="Nach Updates suchen">
     <button class="updctl__btn" id="updCtlBtn">
       <i class="fa-solid fa-rotate updctl__icon" id="updCtlIcon"></i>

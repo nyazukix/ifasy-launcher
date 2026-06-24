@@ -4,6 +4,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('ifasy', {
   // auth + session
   login: (id, pw) => ipcRenderer.invoke('login', id, pw),
+  register: (username, hashtag, password) => ipcRenderer.invoke('register', username, hashtag, password),
+  checkTag: (username, hashtag) => ipcRenderer.invoke('check-tag', username, hashtag),
+  genTag: (username) => ipcRenderer.invoke('gen-tag', username),
   restoreSession: () => ipcRenderer.invoke('session:restore'),
   logoutSession: () => ipcRenderer.invoke('session:logout'),
 
