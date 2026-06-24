@@ -13,10 +13,20 @@
   <!-- ░░ TITLEBAR ░░ -->
   <header class="titlebar">
     <div class="titlebar__brand">IFASY <em>LAUNCHER</em></div>
+    <div class="titlebar__actions">
+      <button id="topFriendsBtn" class="topbtn" title="Freunde">
+        <i class="fa-solid fa-user-group"></i><span>Freunde</span>
+        <span class="badge" id="friendsBadge" hidden>0</span>
+      </button>
+      <button id="gearBtn" class="topbtn" title="Einstellungen">
+        <i class="fa-solid fa-gear"></i><span>Einstellungen</span>
+        <span class="reddot" id="gearDot" hidden></span>
+      </button>
+    </div>
     <div class="titlebar__win">
-      <button id="gearBtn" class="winbtn" title="Einstellungen"><i class="fa-solid fa-gear"></i></button>
       <button id="minBtn" class="winbtn" title="Minimieren"><i class="fa-solid fa-minus"></i></button>
-      <button id="closeBtn" class="winbtn winbtn--close" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+      <button id="maxBtn" class="winbtn" title="Maximieren"><i class="fa-solid fa-expand"></i></button>
+      <button id="closeBtn" class="winbtn winbtn--close" title="In den Infobereich"><i class="fa-solid fa-xmark"></i></button>
     </div>
   </header>
 
@@ -40,7 +50,7 @@
         </button>
         <div id="loginStatus" class="formmsg"></div>
       </form>
-      <div class="login__foot">Launcher v<span id="vLogin">0.1.7</span></div>
+      <div class="login__foot">Launcher v<span id="vLogin">0.1.8</span></div>
     </div>
   </section>
 
@@ -66,13 +76,6 @@
         <span class="game__dot"></span>
       </button>
 
-      <div class="rail__nav">
-        <button id="navFriends" class="navbtn">
-          <i class="fa-solid fa-user-group"></i><span>Freunde</span>
-          <span class="badge" id="friendsBadge" hidden>0</span>
-        </button>
-      </div>
-
       <div class="rail__spacer"></div>
 
       <div class="account">
@@ -92,7 +95,7 @@
         <div class="hero__shade"></div>
         <div class="hero__content">
           <span class="chip" id="heroChip"><span class="chip__txt">LIVE</span></span>
-          <img class="logo-img logo-img--hero" src="https://ifasy.com/cdn/img/brand/main-icon.png" alt="IFASY" />
+          <h1 class="hero__title">IFASY</h1>
           <p class="hero__desc" id="heroDesc"></p>
         </div>
       </section>
@@ -101,8 +104,13 @@
         <div class="action__left">
           <div class="action__state" id="abState">Version wird geladen…</div>
           <div class="bar" id="progress" hidden><span class="bar__fill" id="barFill"></span></div>
+          <div class="dlmeta" id="dlMeta" hidden></div>
         </div>
-        <button id="playBtn" class="btn btn--play" disabled><i class="fa-solid fa-circle-notch fa-spin"></i> PRÜFE…</button>
+        <div class="action__btns">
+          <button id="uninstallBtn" class="btn btn--ghost btn--sm" hidden title="Deinstallieren"><i class="fa-solid fa-trash-can"></i> Deinstallieren</button>
+          <button id="cancelDlBtn" class="btn btn--ghost btn--sm" hidden title="Abbrechen"><i class="fa-solid fa-xmark"></i> Abbrechen</button>
+          <button id="playBtn" class="btn btn--play" disabled><i class="fa-solid fa-circle-notch fa-spin"></i> PRÜFE…</button>
+        </div>
       </footer>
     </main>
   </div>
@@ -160,12 +168,27 @@
   <div class="scrim" id="scrim" hidden></div>
   <aside class="drawer" id="settings" aria-hidden="true">
     <div class="drawer__head"><span><i class="fa-solid fa-gear"></i> Einstellungen</span><button id="setClose" class="winbtn"><i class="fa-solid fa-xmark"></i></button></div>
+
+    <!-- update banner (item 8) -->
+    <div class="updbanner" id="updBanner" hidden>
+      <div class="updbanner__txt"><i class="fa-solid fa-circle-arrow-up"></i> Neues Update verfügbar <b id="updBannerVer"></b></div>
+      <button id="updInstallBtn" class="btn btn--play btn--sm"><i class="fa-solid fa-rotate-right"></i> Aktualisieren &amp; neu starten</button>
+    </div>
+
     <div class="drawer__row"><span><i class="fa-solid fa-code-branch"></i> Launcher-Version</span><b id="launcherVer">–</b></div>
     <div class="drawer__row"><span><i class="fa-solid fa-tower-broadcast"></i> Kanal</span><b id="setChannel">LIVE</b></div>
     <div class="drawer__row drawer__row--col">
       <span><i class="fa-solid fa-folder"></i> Installationsordner</span>
       <b id="setInstallPath" class="path">–</b>
       <button id="setPickFolder" class="btn btn--ghost btn--sm btn--block"><i class="fa-solid fa-folder-open"></i> Ordner ändern</button>
+    </div>
+    <div class="drawer__row drawer__row--col">
+      <span><i class="fa-solid fa-gauge-high"></i> Download-Limit (MB/s)</span>
+      <div class="rate">
+        <input id="rateInput" type="number" min="0" step="1" placeholder="0 = unbegrenzt" />
+        <button id="rateSave" class="btn btn--ghost btn--sm"><i class="fa-solid fa-check"></i></button>
+      </div>
+      <span class="hint">0 = unbegrenzt. Begrenzt die Download-Geschwindigkeit des Spiels.</span>
     </div>
     <button id="updBtn" class="btn btn--accent btn--block"><i class="fa-solid fa-rotate"></i> Nach Launcher-Updates suchen</button>
     <div id="updStatus" class="drawer__msg"></div>

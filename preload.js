@@ -7,15 +7,24 @@ contextBridge.exposeInMainWorld('ifasy', {
   restoreSession: () => ipcRenderer.invoke('session:restore'),
   logoutSession: () => ipcRenderer.invoke('session:logout'),
 
-  // game
+  // game version
   gameVersion: (channel) => ipcRenderer.invoke('game-version', channel),
   downloadGame: (channel) => ipcRenderer.invoke('download-game', channel),
 
-  // install location + flow
+  // install location + status
   installGetBase: () => ipcRenderer.invoke('install:get-base'),
   installPickFolder: () => ipcRenderer.invoke('install:pick-folder'),
   installUseDefault: () => ipcRenderer.invoke('install:use-default'),
-  installStart: (channel) => ipcRenderer.invoke('install:start', channel),
+  installStatus: (channel) => ipcRenderer.invoke('install:status', channel),
+  // download / install / update / uninstall
+  installStart: (channel, version) => ipcRenderer.invoke('install:start', channel, version),
+  installCancel: () => ipcRenderer.invoke('install:cancel'),
+  installUninstall: (channel) => ipcRenderer.invoke('install:uninstall', channel),
+  onDownload: (event, cb) => ipcRenderer.on('dl:' + event, (_e, v) => cb(v)),
+
+  // download throttle settings
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  setDownloadRate: (mbps) => ipcRenderer.invoke('settings:set-rate', mbps),
 
   // social: friends + messages
   socialOverview: () => ipcRenderer.invoke('social:overview'),
@@ -30,9 +39,13 @@ contextBridge.exposeInMainWorld('ifasy', {
   launcherVersion: () => ipcRenderer.invoke('launcher:version'),
   checkLauncherUpdate: () => ipcRenderer.invoke('launcher:check-update'),
   installLauncherUpdate: () => ipcRenderer.send('launcher:install-update'),
+  launcherUpdateAvailable: () => ipcRenderer.invoke('launcher:update-available'),
   onUpdate: (event, cb) => ipcRenderer.on('upd:' + event, (_e, v) => cb(v)),
 
   // window controls
   minimize: () => ipcRenderer.send('win:minimize'),
+  maximize: () => ipcRenderer.send('win:maximize'),
+  isMaximized: () => ipcRenderer.invoke('win:is-maximized'),
+  onWinState: (cb) => ipcRenderer.on('win:state', (_e, v) => cb(v)),
   close: () => ipcRenderer.send('win:close'),
 });

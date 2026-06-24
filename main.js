@@ -1,7 +1,7 @@
 // IFASY Launcher — Electron main process
-// Login, two channels (LIVE/PTB), game download/install, self-update,
-// persisted auto-login session, friends/messaging bridge.
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+// Login, two channels (LIVE/PTB), game download/install with progress+throttle,
+// self-update, persisted auto-login, friends/messaging bridge, tray + window controls.
+const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
@@ -20,6 +20,19 @@ function writeStore(obj) {
 function patchStore(patch) { const s = readStore(); const n = { ...s, ...patch }; writeStore(n); return n; }
 
 let win;
+let tray = null;
+let isQuiting = false; // true only when the user really wants to quit (tray -> Quit)
+
+function iconPath() {
+  // packaged: build/icon.ico ends up next to resources; use the source path in dev/build
+  const candidates = [
+    path.join(__dirname, 'build', 'icon.ico'),
+    path.join(process.resourcesPath || '', 'icon.ico'),
+  ];
+  for (const c of candidates) { try { if (c && fs.existsSync(c)) return c; } catch (e) {} }
+  return candidates[0];
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1180,
@@ -29,6 +42,7 @@ function createWindow() {
     frame: false,
     backgroundColor: '#06080d',
     show: false,
+    icon: iconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -38,11 +52,46 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+
+  // X -> minimize to tray instead of quitting
+  win.on('close', (e) => {
+    if (!isQuiting) { e.preventDefault(); win.hide(); }
+  });
+  // keep the renderer in sync with the maximize state
+  win.on('maximize', () => win.webContents.send('win:state', { maximized: true }));
+  win.on('unmaximize', () => win.webContents.send('win:state', { maximized: false }));
+}
+
+function createTray() {
+  let img;
+  try { img = nativeImage.createFromPath(iconPath()); } catch (e) { img = nativeImage.createEmpty(); }
+  tray = new Tray(img);
+  tray.setToolTip('IFASY Launcher');
+  const menu = Menu.buildFromTemplate([
+    { label: 'IFASY Launcher öffnen', click: () => showWindow() },
+    { type: 'separator' },
+    { label: 'Beenden', click: () => { isQuiting = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(menu);
+  tray.on('click', () => showWindow());
+  tray.on('double-click', () => showWindow());
+}
+function showWindow() {
+  if (!win) return createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
 }
 
 // ---- window controls (custom titlebar) ----
 ipcMain.on('win:minimize', () => win && win.minimize());
-ipcMain.on('win:close', () => win && win.close());
+ipcMain.on('win:maximize', () => {
+  if (!win) return;
+  if (win.isMaximized()) win.unmaximize(); else win.maximize();
+});
+ipcMain.handle('win:is-maximized', () => !!(win && win.isMaximized()));
+// X -> hide to tray (does not quit)
+ipcMain.on('win:close', () => { if (win) win.hide(); });
 
 // ---- login against existing backend ----
 ipcMain.handle('login', async (_e, identifier, password) => {
@@ -53,7 +102,6 @@ ipcMain.handle('login', async (_e, identifier, password) => {
       body: JSON.stringify({ username: identifier, email: identifier, password }),
     });
     const data = await res.json().catch(() => ({ ok: false, error: 'bad_response' }));
-    // persist session for auto-login on next launch
     if (data && data.ok && data.token) patchStore({ token: data.token, user: data.user || null });
     return { status: res.status, data };
   } catch (e) {
@@ -69,18 +117,16 @@ ipcMain.handle('session:restore', async () => {
     const res = await fetch(API_BASE + '/api/me?token=' + encodeURIComponent(s.token), { headers: { Accept: 'application/json' } });
     const data = await res.json().catch(() => ({ ok: false }));
     if (res.ok && data && data.ok) { patchStore({ user: data.user }); return { ok: true, user: data.user, token: s.token }; }
-    // expired / invalid -> clear and fall back to login
     patchStore({ token: null, user: null });
     return { ok: false, error: 'expired' };
   } catch (e) {
-    // offline: keep token, but report so UI can decide (show login)
     return { ok: false, error: 'network_error', offline: true };
   }
 });
 ipcMain.handle('session:token', () => readStore().token || null);
 ipcMain.handle('session:logout', () => { patchStore({ token: null, user: null }); return { ok: true }; });
 
-// ---- social API proxy (friends + messages) — keeps token in main, CSP clean ----
+// ---- social API proxy (friends + messages) ----
 async function socialFetch(method, endpoint, payload) {
   const token = readStore().token;
   if (!token) return { ok: false, error: 'no_session' };
@@ -119,30 +165,18 @@ ipcMain.handle('game-version', async (_e, channel) => {
   }
 });
 
-// ---- open the game download (in-app stream+extract comes later) ----
-ipcMain.handle('download-game', async (_e, channel) => {
-  const url = API_BASE + '/download' + (channel === 'ptb' ? '?channel=ptb' : '');
-  await shell.openExternal(url);
-  return { ok: true };
-});
-
-// ---- install location: get / pick / compute target path ----
-function defaultBasePath() {
-  // <Documents>/IFASY-LAUNCHER/  (always ends in IFASY-LAUNCHER)
-  return path.join(app.getPath('documents'), 'IFASY-LAUNCHER');
-}
+// ---- install location helpers ----
+function defaultBasePath() { return path.join(app.getPath('documents'), 'IFASY-LAUNCHER'); }
 function ensureBaseSuffix(p) {
-  // base path ALWAYS ends in IFASY-LAUNCHER
   const norm = path.normalize(p);
   if (path.basename(norm).toUpperCase() === 'IFASY-LAUNCHER') return norm;
   return path.join(norm, 'IFASY-LAUNCHER');
 }
-function clientPath(base, channel) {
-  return path.join(base, 'client', channel === 'ptb' ? 'ptb' : 'live');
-}
+function clientPath(base, channel) { return path.join(base, 'client', channel === 'ptb' ? 'ptb' : 'live'); }
+
 ipcMain.handle('install:get-base', () => {
   const s = readStore();
-  const base = s.installBase || defaultBasePath();
+  const base = ensureBaseSuffix(s.installBase || defaultBasePath());
   return { base, default: defaultBasePath() };
 });
 ipcMain.handle('install:pick-folder', async () => {
@@ -161,25 +195,144 @@ ipcMain.handle('install:use-default', () => {
   patchStore({ installBase: base });
   return { ok: true, base };
 });
-// First-version install: prepare the target dir and open the official download.
-// (Full in-launcher stream+extract is a later phase; this lays the path foundation.)
-ipcMain.handle('install:start', async (_e, channel) => {
+
+// installed-version bookkeeping per channel
+function getInstalled() { return readStore().installed || {}; }
+ipcMain.handle('install:status', (_e, channel) => {
+  const s = readStore();
+  const installed = (s.installed || {})[channel] || null;
+  const base = ensureBaseSuffix(s.installBase || defaultBasePath());
+  const target = clientPath(base, channel);
+  let onDisk = false;
+  try { onDisk = fs.existsSync(target) && fs.readdirSync(target).length > 0; } catch (e) {}
+  return { installedVersion: installed, base, target, onDisk };
+});
+
+// ---- download settings (throttle) ----
+ipcMain.handle('settings:get', () => {
+  const s = readStore();
+  return { maxRateMBps: s.maxRateMBps || 0 }; // 0 = unlimited
+});
+ipcMain.handle('settings:set-rate', (_e, mbps) => {
+  const v = Math.max(0, Number(mbps) || 0);
+  patchStore({ maxRateMBps: v });
+  return { ok: true, maxRateMBps: v };
+});
+
+// ---- game download with progress / ETA / speed / throttle ----
+let activeDownload = null; // { abort }
+function fmtSend(ch, payload) { win && win.webContents.send('dl:' + ch, payload); }
+
+ipcMain.handle('install:cancel', () => {
+  if (activeDownload && activeDownload.abort) { try { activeDownload.abort.abort(); } catch (e) {} }
+  return { ok: true };
+});
+
+// Streams the game build to <base>/client/<channel>/ with live progress + optional throttle.
+// NOTE: the game build is not published yet; this path is fully wired and gated by the UI
+// (which only enables it when /api/update reports available=true).
+ipcMain.handle('install:start', async (_e, channel, version) => {
   const s = readStore();
   const base = ensureBaseSuffix(s.installBase || defaultBasePath());
   const target = clientPath(base, channel);
   try { fs.mkdirSync(target, { recursive: true }); } catch (e) { return { ok: false, error: 'mkdir_failed', detail: String(e && e.message || e) }; }
   patchStore({ installBase: base });
+
+  const url = API_BASE + '/download' + (channel === 'ptb' ? '?channel=ptb' : '');
+  const maxRate = (readStore().maxRateMBps || 0) * 1024 * 1024; // bytes/sec, 0 = unlimited
+  const abort = new AbortController();
+  activeDownload = { abort };
+  const filePath = path.join(target, 'ifasy-game-' + channel + '.download');
+
+  try {
+    const res = await fetch(url, { signal: abort.signal, redirect: 'follow' });
+    if (!res.ok || !res.body) { activeDownload = null; return { ok: false, error: 'download_unavailable', status: res.status }; }
+    const total = Number(res.headers.get('content-length') || 0);
+    const out = fs.createWriteStream(filePath);
+
+    let received = 0;
+    const startedAt = Date.now();
+    let lastTick = startedAt;
+    let lastBytes = 0;
+
+    const reader = res.body.getReader();
+    // simple token-bucket throttle: cap bytes per second
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.length;
+      out.write(Buffer.from(value));
+
+      // progress / speed / ETA (throttle UI updates to ~4/sec)
+      const now = Date.now();
+      if (now - lastTick >= 250) {
+        const speed = (received - lastBytes) / ((now - lastTick) / 1000); // bytes/sec
+        const pct = total ? Math.min(100, (received / total) * 100) : 0;
+        const remaining = total && speed > 0 ? (total - received) / speed : 0;
+        fmtSend('progress', {
+          channel, received, total,
+          percent: Math.round(pct * 10) / 10,
+          speedMBps: Math.round((speed / 1048576) * 100) / 100,
+          etaSec: Math.round(remaining),
+        });
+        lastTick = now; lastBytes = received;
+      }
+
+      // throttle: keep the cumulative average under maxRate (bytes/sec) by
+      // sleeping whenever we're ahead of the allowed byte budget for the
+      // elapsed time. Sleep is capped at 1s per chunk so the UI stays live.
+      if (maxRate > 0) {
+        const overallElapsed = (now - startedAt) / 1000;
+        const overallAllowed = maxRate * Math.max(overallElapsed, 0.001);
+        if (received > overallAllowed) {
+          const sleepMs = ((received - overallAllowed) / maxRate) * 1000;
+          if (sleepMs > 0) await new Promise((r) => setTimeout(r, Math.min(sleepMs, 1000)));
+        }
+      }
+    }
+    await new Promise((r) => out.end(r));
+    activeDownload = null;
+
+    // mark installed (in a later phase we extract; for now we record the version + keep the file)
+    const installed = getInstalled();
+    installed[channel] = version || true;
+    patchStore({ installed });
+    fmtSend('done', { channel, target, file: filePath, version: version || null });
+    return { ok: true, base, target, file: filePath };
+  } catch (e) {
+    activeDownload = null;
+    if (e && e.name === 'AbortError') { fmtSend('cancelled', { channel }); return { ok: false, error: 'cancelled' }; }
+    fmtSend('error', { channel, message: String(e && e.message || e) });
+    return { ok: false, error: 'download_failed', detail: String(e && e.message || e) };
+  }
+});
+
+// ---- uninstall: remove the client dir for a channel ----
+ipcMain.handle('install:uninstall', async (_e, channel) => {
+  const s = readStore();
+  const base = ensureBaseSuffix(s.installBase || defaultBasePath());
+  const target = clientPath(base, channel);
+  try { fs.rmSync(target, { recursive: true, force: true }); } catch (e) { return { ok: false, error: 'rm_failed', detail: String(e && e.message || e) }; }
+  const installed = getInstalled();
+  delete installed[channel];
+  patchStore({ installed });
+  return { ok: true };
+});
+
+// fallback: open the official download in the browser
+ipcMain.handle('download-game', async (_e, channel) => {
   const url = API_BASE + '/download' + (channel === 'ptb' ? '?channel=ptb' : '');
   await shell.openExternal(url);
-  return { ok: true, base, target };
+  return { ok: true };
 });
 
 // ---- launcher self-update ----
+let updateAvailableVersion = null;
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.on('checking-for-update', () => win && win.webContents.send('upd:checking'));
-autoUpdater.on('update-available', (i) => win && win.webContents.send('upd:available', i.version));
-autoUpdater.on('update-downloaded', (i) => win && win.webContents.send('upd:downloaded', i.version));
+autoUpdater.on('update-available', (i) => { updateAvailableVersion = i.version; win && win.webContents.send('upd:available', i.version); });
+autoUpdater.on('update-downloaded', (i) => { updateAvailableVersion = i.version; win && win.webContents.send('upd:downloaded', i.version); });
 autoUpdater.on('download-progress', (p) => win && win.webContents.send('upd:progress', Math.round(p.percent || 0)));
 autoUpdater.on('error', (e) => win && win.webContents.send('upd:error', String(e && e.message || e)));
 autoUpdater.on('update-not-available', () => win && win.webContents.send('upd:none'));
@@ -188,14 +341,17 @@ ipcMain.handle('launcher:check-update', async () => {
   try { const r = await autoUpdater.checkForUpdates(); return { ok: true, version: r && r.updateInfo && r.updateInfo.version }; }
   catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 });
-ipcMain.on('launcher:install-update', () => autoUpdater.quitAndInstall());
+ipcMain.on('launcher:install-update', () => { isQuiting = true; autoUpdater.quitAndInstall(); });
 ipcMain.handle('launcher:version', () => app.getVersion());
+ipcMain.handle('launcher:update-available', () => updateAvailableVersion);
 
 app.whenReady().then(() => {
   createWindow();
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
-  // Robust update: also run an automatic check shortly after launch (works on
-  // both the login screen and after auto-login). Errors are reported to the UI.
+  createTray();
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); else showWindow(); });
+  // Robust update: auto-check shortly after launch (works on login screen + after auto-login).
   setTimeout(() => { autoUpdater.checkForUpdates().catch((e) => { win && win.webContents.send('upd:error', String(e && e.message || e)); }); }, 4000);
 });
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+// Closing all windows must NOT quit (we live in the tray). Real quit is via tray -> Beenden.
+app.on('window-all-closed', () => { /* stay alive in tray */ });
+app.on('before-quit', () => { isQuiting = true; });

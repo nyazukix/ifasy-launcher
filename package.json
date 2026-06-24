@@ -1,6 +1,6 @@
 {
   "name": "ifasy-launcher",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Offizieller IFASY Launcher fuer Login, Download und Updates",
   "main": "main.js",
   "author": "IFASY",
@@ -15,7 +15,7 @@
     "productName": "IFASY Launcher",
     "copyright": "Copyright 2026 IFASY",
     "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "renderer/**/*"],
+    "files": ["main.js", "preload.js", "renderer/**/*", "build/icon.ico"],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
       "icon": "build/icon.ico",
