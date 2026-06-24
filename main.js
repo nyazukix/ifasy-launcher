@@ -203,9 +203,17 @@ ipcMain.handle('install:status', (_e, channel) => {
   const installed = (s.installed || {})[channel] || null;
   const base = ensureBaseSuffix(s.installBase || defaultBasePath());
   const target = clientPath(base, channel);
+  // onDisk = real installed payload present, IGNORING incomplete *.download partials
+  // (a cancelled/failed download must not look "installed").
   let onDisk = false;
-  try { onDisk = fs.existsSync(target) && fs.readdirSync(target).length > 0; } catch (e) {}
-  return { installedVersion: installed, base, target, onDisk };
+  try {
+    if (fs.existsSync(target)) {
+      const real = fs.readdirSync(target).filter((f) => !f.endsWith('.download'));
+      onDisk = real.length > 0;
+    }
+  } catch (e) {}
+  // Authoritative: installed only when the store recorded a completed install.
+  return { installedVersion: installed, base, target, onDisk: onDisk && !!installed };
 });
 
 // ---- download settings (throttle) ----
@@ -220,8 +228,9 @@ ipcMain.handle('settings:set-rate', (_e, mbps) => {
 });
 
 // ---- game download with progress / ETA / speed / throttle ----
-let activeDownload = null; // { abort }
+let activeDownload = null; // { abort, filePath, channel }
 function fmtSend(ch, payload) { win && win.webContents.send('dl:' + ch, payload); }
+function cleanupPartial(filePath) { try { if (filePath && fs.existsSync(filePath)) fs.rmSync(filePath, { force: true }); } catch (e) {} }
 
 ipcMain.handle('install:cancel', () => {
   if (activeDownload && activeDownload.abort) { try { activeDownload.abort.abort(); } catch (e) {} }
@@ -238,17 +247,19 @@ ipcMain.handle('install:start', async (_e, channel, version) => {
   try { fs.mkdirSync(target, { recursive: true }); } catch (e) { return { ok: false, error: 'mkdir_failed', detail: String(e && e.message || e) }; }
   patchStore({ installBase: base });
 
+  if (activeDownload) { return { ok: false, error: 'download_in_progress' }; }
   const url = API_BASE + '/download' + (channel === 'ptb' ? '?channel=ptb' : '');
   const maxRate = (readStore().maxRateMBps || 0) * 1024 * 1024; // bytes/sec, 0 = unlimited
   const abort = new AbortController();
-  activeDownload = { abort };
   const filePath = path.join(target, 'ifasy-game-' + channel + '.download');
+  activeDownload = { abort, filePath, channel };
+  let out = null;
 
   try {
     const res = await fetch(url, { signal: abort.signal, redirect: 'follow' });
-    if (!res.ok || !res.body) { activeDownload = null; return { ok: false, error: 'download_unavailable', status: res.status }; }
+    if (!res.ok || !res.body) { activeDownload = null; cleanupPartial(filePath); return { ok: false, error: 'download_unavailable', status: res.status }; }
     const total = Number(res.headers.get('content-length') || 0);
-    const out = fs.createWriteStream(filePath);
+    out = fs.createWriteStream(filePath);
 
     let received = 0;
     const startedAt = Date.now();
@@ -301,6 +312,9 @@ ipcMain.handle('install:start', async (_e, channel, version) => {
     return { ok: true, base, target, file: filePath };
   } catch (e) {
     activeDownload = null;
+    // close the stream then remove the partial file so it never looks "installed"
+    try { if (out) out.destroy(); } catch (_) {}
+    cleanupPartial(filePath);
     if (e && e.name === 'AbortError') { fmtSend('cancelled', { channel }); return { ok: false, error: 'cancelled' }; }
     fmtSend('error', { channel, message: String(e && e.message || e) });
     return { ok: false, error: 'download_failed', detail: String(e && e.message || e) };
@@ -328,22 +342,33 @@ ipcMain.handle('download-game', async (_e, channel) => {
 
 // ---- launcher self-update ----
 let updateAvailableVersion = null;
+let updateDownloaded = false;
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.on('checking-for-update', () => win && win.webContents.send('upd:checking'));
-autoUpdater.on('update-available', (i) => { updateAvailableVersion = i.version; win && win.webContents.send('upd:available', i.version); });
-autoUpdater.on('update-downloaded', (i) => { updateAvailableVersion = i.version; win && win.webContents.send('upd:downloaded', i.version); });
+autoUpdater.on('update-available', (i) => { updateAvailableVersion = i.version; updateDownloaded = false; win && win.webContents.send('upd:available', i.version); });
+autoUpdater.on('update-downloaded', (i) => { updateAvailableVersion = i.version; updateDownloaded = true; win && win.webContents.send('upd:downloaded', i.version); });
 autoUpdater.on('download-progress', (p) => win && win.webContents.send('upd:progress', Math.round(p.percent || 0)));
 autoUpdater.on('error', (e) => win && win.webContents.send('upd:error', String(e && e.message || e)));
 autoUpdater.on('update-not-available', () => win && win.webContents.send('upd:none'));
 
 ipcMain.handle('launcher:check-update', async () => {
-  try { const r = await autoUpdater.checkForUpdates(); return { ok: true, version: r && r.updateInfo && r.updateInfo.version }; }
-  catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+  try {
+    const r = await autoUpdater.checkForUpdates();
+    const remote = r && r.updateInfo && r.updateInfo.version;
+    const current = app.getVersion();
+    // checkForUpdates resolves even mid-download; report a definitive state so the
+    // UI never dead-ends on "wird geladen…".
+    const hasUpdate = !!(remote && remote !== current);
+    return { ok: true, version: remote, current, hasUpdate, downloaded: !!updateDownloaded };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
 });
 ipcMain.on('launcher:install-update', () => { isQuiting = true; autoUpdater.quitAndInstall(); });
 ipcMain.handle('launcher:version', () => app.getVersion());
 ipcMain.handle('launcher:update-available', () => updateAvailableVersion);
+ipcMain.handle('launcher:update-state', () => ({ version: updateAvailableVersion, downloaded: updateDownloaded, current: app.getVersion() }));
 
 app.whenReady().then(() => {
   createWindow();

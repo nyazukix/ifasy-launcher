@@ -4,6 +4,8 @@ const api = window.ifasy;
 let channel = 'live';
 // per-channel state: { available, latest, installedVersion, onDisk }
 let chState = { live: {}, ptb: {} };
+let downloading = false;        // true while a game download/update is streaming
+let downloadingChannel = null;  // which channel is downloading
 
 const GAME_DESC =
   'IFASY ist ein Koop Zombie Shooter. Schlagt euch solo oder mit bis zu vier Freunden durch endlose Horden. ' +
@@ -108,10 +110,15 @@ async function selectChannel(ch) {
   $('heroDesc').textContent = ptb ? GAME_DESC_PTB : GAME_DESC;
   $('setChannel').textContent = ptb ? 'PTB' : 'LIVE';
 
-  resetDownloadUi();
+  // Don't disturb an in-progress download when the user just clicks around.
+  if (downloading && ch === downloadingChannel) { renderActionState(ch); return; }
+
   const play = $('playBtn');
+  play.hidden = false;
   play.className = 'btn btn--play' + (ptb ? ' ptb' : '');
   play.disabled = true; play.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> PRÜFE…';
+  $('cancelDlBtn').hidden = true;
+  $('progress').hidden = true; $('dlMeta').hidden = true;
   $('abState').textContent = 'Version wird geladen…';
   $('uninstallBtn').hidden = true;
 
@@ -125,43 +132,60 @@ async function selectChannel(ch) {
   renderActionState(ch);
 }
 
+// Single source of truth for the action area. Exactly one of these states is shown:
+//   unpublished | install | downloading | play | update
 function renderActionState(ch) {
   if (ch !== channel) return;
   const s = chState[ch];
   const play = $('playBtn');
   const uninstall = $('uninstallBtn');
+  const cancel = $('cancelDlBtn');
+
+  // ── DOWNLOADING: progress + Abbrechen ONLY (no play, no uninstall) ──
+  if (downloading) {
+    play.hidden = true; play.disabled = true; play.onclick = null;
+    uninstall.hidden = true;
+    cancel.hidden = false;
+    $('progress').hidden = false; $('dlMeta').hidden = false;
+    return;
+  }
+
+  // not downloading: play visible, cancel hidden, progress hidden
+  cancel.hidden = true;
+  $('progress').hidden = true; $('dlMeta').hidden = true;
+  play.hidden = false; play.disabled = false;
   play.className = 'btn btn--play' + (ch === 'ptb' ? ' ptb' : '');
-  play.disabled = false;
-  uninstall.hidden = true;
 
   if (!s.available) {
-    // unpublished
+    // ── NOT PUBLISHED ──
     $('abState').textContent = 'Spiel wurde noch nicht veröffentlicht';
     play.disabled = true; play.innerHTML = '<i class="fa-solid fa-hourglass-half"></i> BALD';
     play.onclick = null;
+    uninstall.hidden = true;
     return;
   }
 
   if (!s.installed) {
-    // published, not installed -> Installieren
+    // ── PUBLISHED + NOT INSTALLED: Installieren ──
     $('abState').textContent = 'Version ' + s.latest + (s.size ? '  ·  ' + fmtBytes(s.size) : '');
     play.innerHTML = '<i class="fa-solid fa-download"></i> INSTALLIEREN';
     play.onclick = () => openInstallModal(ch);
+    uninstall.hidden = true; // only when actually installed
     return;
   }
 
-  // installed
+  // ── INSTALLED: Deinstallieren is visible ──
   uninstall.hidden = false;
-  $('uninstallBtn').onclick = () => doUninstall(ch);
+  uninstall.onclick = () => doUninstall(ch);
 
   if (s.latest && s.installedVersion && String(s.installedVersion) !== String(s.latest)) {
-    // installed but outdated -> Updaten
+    // INSTALLED + UPDATE: Updaten + Deinstallieren
     $('abState').textContent = 'Update verfügbar · ' + s.installedVersion + ' → ' + s.latest;
     play.classList.add('play--update');
     play.innerHTML = '<i class="fa-solid fa-arrow-rotate-right"></i> UPDATEN';
     play.onclick = () => startGameDownload(ch, s.latest);
   } else {
-    // installed + up to date -> Spielen
+    // INSTALLED + UP TO DATE: Spielen + Deinstallieren
     $('abState').textContent = 'Installiert · Version ' + (s.installedVersion || s.latest);
     play.classList.add('play--ready');
     play.innerHTML = '<i class="fa-solid fa-play"></i> SPIELEN';
@@ -182,22 +206,20 @@ async function doUninstall(ch) {
 }
 
 /* ============================ DOWNLOAD UI ============================ */
-function resetDownloadUi() {
-  $('progress').hidden = true;
-  $('dlMeta').hidden = true;
+function enterDownloading(ch) {
+  downloading = true; downloadingChannel = ch;
   $('barFill').style.width = '0%';
-  $('cancelDlBtn').hidden = true;
+  $('dlMeta').textContent = '';
+  renderActionState(ch);
 }
-function setDownloading(on) {
-  $('progress').hidden = !on;
-  $('dlMeta').hidden = !on;
-  $('cancelDlBtn').hidden = !on;
-  $('playBtn').disabled = on;
-  $('uninstallBtn').hidden = on ? true : $('uninstallBtn').hidden;
+function exitDownloading() {
+  downloading = false; downloadingChannel = null;
+  $('barFill').style.width = '0%';
+  $('dlMeta').textContent = '';
 }
 
 api.onDownload('progress', (p) => {
-  if (!p || p.channel !== channel) return;
+  if (!p || !downloading || p.channel !== downloadingChannel) return;
   $('barFill').style.width = (p.percent || 0) + '%';
   const got = fmtBytes(p.received), tot = fmtBytes(p.total);
   $('dlMeta').textContent =
@@ -209,24 +231,36 @@ api.onDownload('progress', (p) => {
 api.onDownload('done', (p) => {
   if (!p) return;
   if (chState[p.channel]) { chState[p.channel].installed = true; chState[p.channel].installedVersion = p.version || chState[p.channel].latest; }
-  setDownloading(false);
-  resetDownloadUi();
-  selectChannel(p.channel);
+  exitDownloading();
+  $('abState').textContent = 'Installation abgeschlossen.';
+  selectChannel(p.channel); // re-reads status -> Spielen + Deinstallieren
 });
-api.onDownload('cancelled', (p) => { setDownloading(false); resetDownloadUi(); $('abState').textContent = 'Download abgebrochen.'; if (p) selectChannel(p.channel); });
-api.onDownload('error', (p) => { setDownloading(false); resetDownloadUi(); $('abState').textContent = 'Download fehlgeschlagen.'; });
+api.onDownload('cancelled', (p) => {
+  exitDownloading();
+  $('abState').textContent = 'Download abgebrochen.';
+  selectChannel((p && p.channel) || channel); // partial deleted server-side -> back to Installieren
+});
+api.onDownload('error', (p) => {
+  exitDownloading();
+  $('abState').textContent = 'Download fehlgeschlagen.';
+  selectChannel((p && p.channel) || channel);
+});
 
-$('cancelDlBtn').onclick = () => api.installCancel();
+$('cancelDlBtn').onclick = () => { $('abState').textContent = 'Wird abgebrochen…'; api.installCancel(); };
 
 async function startGameDownload(ch, version) {
-  setDownloading(true);
+  if (downloading) return; // guard against double-start
+  enterDownloading(ch);
   $('abState').textContent = 'Download wird vorbereitet…';
   const r = await api.installStart(ch, version);
+  // success path resolves via the 'done' event; only handle synchronous failures here
   if (!r || !r.ok) {
-    setDownloading(false); resetDownloadUi();
+    exitDownloading();
+    if (r && r.error === 'download_in_progress') return; // another download already running
     $('abState').textContent = r && r.error === 'download_unavailable'
       ? 'Spiel wurde noch nicht veröffentlicht'
       : 'Download fehlgeschlagen.';
+    selectChannel(ch);
   }
 }
 
@@ -286,7 +320,7 @@ $('setPickFolder').onclick = async () => {
 $('rateSave').onclick = async () => {
   const v = parseFloat($('rateInput').value) || 0;
   await api.setDownloadRate(v);
-  $('updStatus').textContent = v > 0 ? ('Download-Limit: ' + v + ' MB/s gesetzt.') : 'Download-Limit aufgehoben (unbegrenzt).';
+  $('rateHint').textContent = v > 0 ? ('Gespeichert: max ' + v + ' MB/s.') : 'Gespeichert: unbegrenzt.';
 };
 
 /* ---- launcher self-update + indicator (item 8) ---- */
@@ -295,23 +329,71 @@ async function refreshUpdateIndicator() {
   $('gearDot').hidden = !v;
 }
 async function refreshUpdateBanner() {
-  const v = await api.launcherUpdateAvailable();
-  if (v) { $('updBanner').hidden = false; $('updBannerVer').textContent = 'v' + v; }
-  else { $('updBanner').hidden = true; }
+  const st = await api.launcherUpdateState();
+  if (st && st.version) {
+    $('updBanner').hidden = false;
+    $('updBannerVer').textContent = 'v' + st.version;
+    // restart action only meaningful once the update has finished downloading
+    $('updInstallBtn').disabled = !st.downloaded;
+    $('updInstallBtn').innerHTML = st.downloaded
+      ? '<i class="fa-solid fa-rotate-right"></i> Aktualisieren &amp; neu starten'
+      : '<i class="fa-solid fa-circle-notch fa-spin"></i> Wird geladen…';
+  } else {
+    $('updBanner').hidden = true;
+  }
 }
 $('updInstallBtn').onclick = () => { $('updStatus').textContent = 'Wird aktualisiert — Neustart…'; api.installLauncherUpdate(); };
 
+/* ---- robust update flow (C1): never dead-end on "wird geladen…" ---- */
+let updStatusEl = null;
+let updWatchdog = null;          // timeout that rescues a stuck download
+let updChecking = false;
+function setUpd(msg, kind) {
+  updStatusEl = updStatusEl || $('updStatus');
+  updStatusEl.textContent = msg || '';
+  updStatusEl.className = 'drawer__msg' + (kind ? ' ' + kind : '');
+}
+function clearUpdWatchdog() { if (updWatchdog) { clearTimeout(updWatchdog); updWatchdog = null; } }
+function armUpdWatchdog() {
+  clearUpdWatchdog();
+  // if no resolving event arrives in 45s, resolve to a clear state from main's truth
+  updWatchdog = setTimeout(async () => {
+    const st = await api.launcherUpdateState();
+    if (st && st.downloaded) { showUpdateReady(st.version); }
+    else if (st && st.version) { setUpd('Update ' + st.version + ' wird im Hintergrund geladen. Du kannst weiterspielen.', ''); }
+    else { setUpd('Zeitüberschreitung bei der Update-Prüfung. Bitte erneut versuchen.', 'err'); }
+    updChecking = false;
+  }, 45000);
+}
+function showUpdateReady(v) {
+  clearUpdWatchdog();
+  updChecking = false;
+  $('gearDot').hidden = false;
+  refreshUpdateBanner();
+  setUpd('Update ' + (v ? v + ' ' : '') + 'bereit zum Installieren.', 'ok');
+}
+
 $('updBtn').onclick = async () => {
-  $('updStatus').textContent = 'Suche nach Updates…';
+  // manual button always re-triggers a fresh check and resolves to a clear state,
+  // even if a previous check left the UI mid-"wird geladen…".
+  clearUpdWatchdog();
+  updChecking = true;
+  setUpd('Suche nach Updates…', '');
+  armUpdWatchdog();
   const r = await api.checkLauncherUpdate();
-  if (!r.ok) $('updStatus').textContent = 'Update-Prüfung fehlgeschlagen: kein Release verfügbar.';
+  if (!r || !r.ok) { clearUpdWatchdog(); updChecking = false; setUpd('Update-Prüfung fehlgeschlagen: ' + ((r && r.error) || 'kein Release verfügbar') + '.', 'err'); return; }
+  // resolve immediately from the returned truth (events may also fire)
+  if (r.downloaded) { showUpdateReady(r.version); }
+  else if (r.hasUpdate) { setUpd('Update ' + r.version + ' wird geladen…', ''); /* watchdog still armed */ }
+  else { clearUpdWatchdog(); updChecking = false; $('gearDot').hidden = true; setUpd('Launcher ist aktuell. ✔', 'ok'); }
 };
-api.onUpdate('checking', () => { $('updStatus').textContent = 'Suche nach Updates…'; });
-api.onUpdate('available', (v) => { $('updStatus').textContent = 'Update ' + v + ' wird geladen…'; $('gearDot').hidden = false; refreshUpdateBanner(); });
-api.onUpdate('progress', (p) => { $('updStatus').textContent = 'Update wird geladen… ' + p + '%'; });
-api.onUpdate('downloaded', (v) => { $('gearDot').hidden = false; refreshUpdateBanner(); $('updStatus').innerHTML = 'Update ' + v + ' bereit.'; });
-api.onUpdate('none', () => { $('updStatus').textContent = 'Launcher ist aktuell. ✔'; $('gearDot').hidden = true; });
-api.onUpdate('error', () => { $('updStatus').textContent = 'Kein Update verfügbar / noch kein Release.'; });
+
+api.onUpdate('checking', () => { setUpd('Suche nach Updates…', ''); });
+api.onUpdate('available', (v) => { $('gearDot').hidden = false; refreshUpdateBanner(); setUpd('Update ' + v + ' wird geladen…', ''); armUpdWatchdog(); });
+api.onUpdate('progress', (p) => { armUpdWatchdog(); setUpd('Update wird geladen… ' + p + '%', ''); });
+api.onUpdate('downloaded', (v) => { showUpdateReady(v); });
+api.onUpdate('none', () => { clearUpdWatchdog(); updChecking = false; $('gearDot').hidden = true; setUpd('Launcher ist aktuell. ✔', 'ok'); });
+api.onUpdate('error', (msg) => { clearUpdWatchdog(); updChecking = false; setUpd('Update fehlgeschlagen / kein Release verfügbar.', 'err'); });
 
 /* ============================ FRIENDS & MESSAGING ============================ */
 const fDrawer = $('friendsDrawer'), fScrim = $('friendsScrim');

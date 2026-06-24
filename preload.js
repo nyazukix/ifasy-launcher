@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('ifasy', {
   checkLauncherUpdate: () => ipcRenderer.invoke('launcher:check-update'),
   installLauncherUpdate: () => ipcRenderer.send('launcher:install-update'),
   launcherUpdateAvailable: () => ipcRenderer.invoke('launcher:update-available'),
+  launcherUpdateState: () => ipcRenderer.invoke('launcher:update-state'),
   onUpdate: (event, cb) => ipcRenderer.on('upd:' + event, (_e, v) => cb(v)),
 
   // window controls
